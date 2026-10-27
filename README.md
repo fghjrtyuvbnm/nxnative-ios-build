@@ -36,10 +36,12 @@ The compiled template from run `40482789385` contains 73,496 successful shaders 
 
 When the Windows upload is slow, `publish-verified.yml` can reuse the completed private template on a standard Linux runner. It strips resources using the same ZIP procedure, requires the exact size and SHA-256 from the private Windows verification report, checks CRC, and publishes only an identical IPA to the private release. A byte mismatch fails without publishing; it never recompiles game code or shaders. The `-cloud` filename distinguishes this asset from an ongoing Windows transfer.
 
+This publication succeeded in run `40497295488`. GitHub's uploaded-asset digest matches the Windows verification report. The redundant slow Windows upload was stopped after confirming the private cloud asset.
+
 ## Checks
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
-`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml`
+`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml`
 
 The private-destination regression first failed against the previous repository-relative transfer code, then passed after pinning the destination. The directory-scope regression likewise reproduced an original-granted-URL lifetime bug before its fix. Other new scaffold import errors are not claimed as behavioral RED evidence.
