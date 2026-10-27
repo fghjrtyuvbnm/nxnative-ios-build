@@ -50,10 +50,10 @@ def finish(download,work,out):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('download');p.add_argument('work');p.add_argument('out');a=p.parse_args()
     control=pathlib.Path(__file__).resolve().parents[2]/'external-data-mode.json'
-    if control.is_file():
-        m=json.loads((pathlib.Path(a.download)/'result-manifest.json').read_text())
-        if not m.get('external_data_runtime'):
-            raise SystemExit('Compiled shaders are ready. This earlier template needs the external-folder launcher rebuild before final packaging; embedded-data packaging is disabled.')
+    m=json.loads((pathlib.Path(a.download)/'result-manifest.json').read_text())
+    if m.get('external_data_runtime'):
         from external_pack import finish_external
         finish_external(a.download,a.work,a.out)
+    elif control.is_file():
+        raise SystemExit('Compiled shaders are ready. This earlier template needs the external-folder launcher rebuild before final packaging; embedded-data packaging is disabled.')
     else:finish(a.download,a.work,a.out)

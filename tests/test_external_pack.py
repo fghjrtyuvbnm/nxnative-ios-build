@@ -6,12 +6,27 @@ import sys
 import tempfile
 import unittest
 import zipfile
+import shutil
+import subprocess
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'scripts'))
 from contracts import TITLE,BUILD,sha256
 from transfer import split_file
 import external_pack as e
 
 class ExternalPack(unittest.TestCase):
+    def test_cli_uses_template_contract_without_machine_local_mode_flag(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=pathlib.Path(td);d,w,_=self.fixture(root)
+            scripts=root/'checkout/scripts';scripts.mkdir(parents=True)
+            original=pathlib.Path(__file__).resolve().parents[1]/'scripts'
+            for name in ('finish_windows.py','external_pack.py','contracts.py'):
+                shutil.copyfile(original/name,scripts/name)
+            out=root/'portable-launcher.ipa'
+            result=subprocess.run([sys.executable,str(scripts/'finish_windows.py'),str(d),str(w),str(out)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertTrue((root/'FFRS-Data/game-data.json').is_file(),'External template must export separate data without a local mode flag')
+            with zipfile.ZipFile(out) as z:self.assertFalse(any(n.startswith(e.APP+'romfs/') for n in z.namelist()))
+
     def fixture(self,root,external=True):
         download=root/'download';download.mkdir();source=root/'source.ipa'
         identity={'title_id':TITLE,'main_build':BUILD,'shader_chain':'test','shader_inputs':'input'}
