@@ -1,0 +1,26 @@
+name: Build launcher from private compiled resources
+on:
+  workflow_dispatch:
+    inputs:
+      resource_run:
+        description: Run ID owning the private compiled-resources checkpoint
+        required: true
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+  DATA_BUILD_ID: '40459496301'
+jobs:
+  launcher:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Compile only the unsigned external-folder application
+        env:
+          SOURCE_RESOURCE_RUN: ${{ inputs.resource_run }}
+        run: python -u scripts/private_job.py launcher "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game" "$SOURCE_RESOURCE_RUN"

@@ -57,6 +57,9 @@ def main(repo,work,download,source_run):
     inputs=subprocess.check_output([sys.executable,repo/'dm/gfx/tools/dmsh_chain.py','--inputs'],env=env,text=True).strip()
     resources=work/'reused';profile=repo/'dm/games'/TITLE
     identity=restore_tables(archive,resources,profile,chain,inputs)
+    from cache_layout import verify_geometry
+    geometry={fields[3]:'geometry' for line in g.table('shader_map.tsv').read_text().splitlines() if len(fields:=line.split('\t'))==5 and fields[2]=='geometry'}
+    verify_geometry(geometry,None,resources/'msl'/('b-'+chain),chain)
     ex=work/'extract/v1';patched=work/'patched_v1'
     if b.build_mismatch(ex,'v1',g) or BUILD not in (patched/'main.fixups.tsv').read_text():raise ValueError('Unexpected rewritten modules')
     ie=dict(env,W=str(work/'ipa'),PATCHED=str(patched),ROMFS=str(ex/'RomFS'),MSL_IOS=str(resources/'msl'),GFXAPI='nvn',FONT_PY=sys.executable,
@@ -64,6 +67,8 @@ def main(repo,work,download,source_run):
         AOC=str(resources/'aoc'),DM_XCODE_DERIVED_DATA=str(work/'xcode-dd'),DM_LANG='zh-Hans',DM_SHOW_FPS='1',DM_PSO_GPUS='none',DM_ENTITLEMENTS='')
     if (ex/'icon.jpg').is_file():ie['DM_ICON']=str(ex/'icon.jpg')
     b.PROG.stage('Prepare external-folder launcher with reused libraries')
+    from private_io import progress
+    progress(work,'preparing-xcode')
     b.run(['bash',repo/'dm/ios/tools/build_ipa.sh','--prepare-xcode'],logs/'prepare_xcode.log',env=ie)
     plist=work/'ipa/xcode/Gen/Info.plist'
     info=plistlib.loads(plist.read_bytes())
@@ -71,20 +76,23 @@ def main(repo,work,download,source_run):
                 LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
     plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned external-folder launcher; no shader recompilation')
+    progress(work,'compiling-app')
     dd=work/'xcode-dd'
     b.run(['xcodebuild','-project',work/'ipa/xcode/DmIOS.xcodeproj','-scheme',f'FINAL FANTASY RESONANCE ({TITLE})','-configuration','Release',
         '-destination','generic/platform=iOS','-derivedDataPath',dd,'CODE_SIGNING_ALLOWED=NO','CODE_SIGNING_REQUIRED=NO','CODE_SIGN_IDENTITY=',
         'DM_COPY_GAME_RESOURCES=NO','DM_XCODE_OUTPUT_ROOT='+str(dd),'SYMROOT='+str(dd/'Build/Products'),'OBJROOT='+str(dd/'Build/Intermediates.noindex'),'build'],logs/'xcodebuild.log',env=ie)
     out=work/'output';out.mkdir(exist_ok=True);template=out/'FFR-external-template.ipa'
     app=dd/'Build/Products/Release-iphoneos/DmIOS.app';arc=APP.rstrip('/')
+    progress(work,'packing-template')
     cmd=[sys.executable,repo/'dm/ios/tools/pack_ipa.py',template,'--store',g.get('zip_store')]
     for name in ('_CodeSignature','embedded.mobileprovision','romfs','msl','aoc'):cmd+=['--skip',f'{arc}/{name}']
     cmd += [f'{arc}={app}',f'{arc}/msl/b-{chain}={resources}/msl/b-{chain}',f'{arc}/aoc={resources}/aoc']
     b.run(cmd,logs/'pack_template.log',env=ie)
-    report=dict(previous,external_data_runtime=True,external_data_identity=identity,source_shader_run=int(source_run),
+    report=dict(previous,external_data_runtime=True,resource_only=False,geometry_validation='passed',external_data_identity=identity,source_shader_run=int(source_run),
                 template_sha256=sha256(template),template_bytes=template.stat().st_size,parts=split_file(template,out,'template'),
                 romfs_packaging='Export as separate data folder on Windows',signed=False,runtime_tested=False)
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
+    progress(work,'template-ready')
     b.PROG.close();print('External-folder launcher template ready; shaders reused unchanged.',flush=True)
 
 if __name__=='__main__':main(*sys.argv[1:])

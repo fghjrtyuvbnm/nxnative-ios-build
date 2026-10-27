@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 import json
-from private_io import assert_private, download_input, publish_template, save_logs, PROGRESS_STAGES
+from private_io import assert_private, download_input, download_resources, publish_template, save_logs, PROGRESS_STAGES
 
 def main(mode,repo,work,*args):
     assert_private()
@@ -13,11 +13,14 @@ def main(mode,repo,work,*args):
     start=time.monotonic();status=1
     try:
         with (logs/'private-job.log').open('w') as log:
-            if mode=='assemble':
+            if mode in ('assemble','launcher'):
                 # Also suppress transfer diagnostics in the public job.
                 p=subprocess.run([sys.executable,pathlib.Path(__file__).with_name('private_io.py'),'input',work],stdout=log,stderr=subprocess.STDOUT)
                 if p.returncode:raise RuntimeError('Private input restore failed')
-            command=[sys.executable,'-u',pathlib.Path(__file__).with_name('pipeline.py'),mode,repo,work,*args]
+            if mode=='launcher':
+                resources=download_resources(work,args[0])
+                command=[sys.executable,'-u',pathlib.Path(__file__).with_name('build_external_launcher.py'),repo,work,resources,args[0]]
+            else:command=[sys.executable,'-u',pathlib.Path(__file__).with_name('pipeline.py'),mode,repo,work,*args]
             child=subprocess.Popen(list(map(str,command)),stdout=log,stderr=subprocess.STDOUT)
             while child.poll() is None:
                 stage='running'
@@ -28,7 +31,7 @@ def main(mode,repo,work,*args):
                 print(f'{mode}: {stage}; elapsed {round(time.monotonic()-start)}s; raw diagnostics remain private',flush=True)
                 time.sleep(30)
             status=child.returncode
-        if status==0 and mode=='assemble':publish_template(work)
+        if status==0 and mode in ('assemble','launcher'):publish_template(work)
     finally:
         save_logs(work)
     if status:raise SystemExit(status)

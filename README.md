@@ -16,6 +16,8 @@ Assembly in run `40469277783` correctly stopped on differing compiled derivative
 
 Run `40474749685` passed all archive merges, then exposed an overly broad ordinary-index requirement. Upstream's geometry layer-selection fold deliberately emits only JSON, so it has no ordinary CAS entry. Windows verified all 73,495 ordinary cache layouts; the one uncached geometry descriptor is explicitly pending regeneration by the full pass. Non-geometry missing indices still fail. After the full pass, geometry folds require a valid descriptor and compute-lowered geometry requires every topology and reader library; no absent geometry output is silently accepted.
 
+The slice component is an upstream `x/y/z/w` string. A regression executes the pinned upstream `gs_slice` parser on a GLSL fixture and checks the resulting descriptor against our validator; the earlier numeric assumption is rejected. Before custom output validation or application compilation, the workflow now saves real compiled iOS libraries, c1/extent tables and DLC to private release `compiled-resources-<run-id>`. This resource-only checkpoint is not an installable application. `launcher-only.yml`, dispatched with its `resource_run`, verifies the real geometry outputs and rebuilds only the native launcher from that checkpoint. It does not repeat shader partition compilation or CAS merging.
+
 `ui-tests.yml` uses a tiny production-launcher harness without game data or private credentials. It verifies Foundation directory lifecycle and an iOS Simulator folder picker. A missing simulator/runtime is an environment failure, not a behavioral test failure.
 
 ## External folder output

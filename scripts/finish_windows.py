@@ -51,6 +51,7 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('download');p.add_argument('work');p.add_argument('out');a=p.parse_args()
     control=pathlib.Path(__file__).resolve().parents[2]/'external-data-mode.json'
     m=json.loads((pathlib.Path(a.download)/'result-manifest.json').read_text())
+    if m.get('resource_only'):raise SystemExit('Compiled resources are not an application; build the external-folder launcher first.')
     if m.get('external_data_runtime'):
         from external_pack import finish_external
         finish_external(a.download,a.work,a.out)

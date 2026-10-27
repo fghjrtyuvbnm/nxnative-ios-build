@@ -14,6 +14,23 @@ def stage_progress(work,label):
         from private_io import progress
         progress(work,label)
 
+def checkpoint_resources(b,repo,work,g,ios,results,env,logs):
+    stage_progress(work,'saving-shader-resources')
+    out=work/'compiled-resources';out.mkdir();archive=out/'compiled-resources.zip';chain=b.chain_of(repo);arc='Payload/DmIOS.app'
+    command=[sys.executable,repo/'dm/ios/tools/pack_ipa.py',archive,'--store',g.get('zip_store'),
+             f'{arc}/msl/b-{chain}={ios}/b-{chain}',f'{arc}/aoc={work}/aoc',
+             f'{arc}/dm/c1_full.tsv={g.table("c1_full.tsv")}',f'{arc}/dm/cb_extent.tsv={g.table("cb_extent.tsv")}']
+    b.run(command,logs/'pack_resources.log',env=env)
+    report={'title_id':TITLE,'main_build':BUILD,'resource_only':True,'signed':False,'external_data_runtime':False,
+            'template_sha256':sha256(archive),'template_bytes':archive.stat().st_size,'parts':split_file(archive,out,'template'),
+            'shader_total':len(results),'shader_failed':[r for r in results if r['st']!='ok'],'geometry_validation':'pending'}
+    (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
+    geometry={fields[3] for line in g.table('shader_map.tsv').read_text().splitlines() if len(fields:=line.split('\t'))==5 and fields[2]=='geometry'}
+    descriptors={key:json.loads((ios/('b-'+chain)/(key+'_b.json')).read_text()) for key in geometry}
+    (out/'geometry-descriptors.json').write_text(json.dumps(descriptors,indent=2))
+    from private_io import publish_resources
+    publish_resources(work)
+
 def main(repo,work,mode='full'):
     repo=pathlib.Path(repo).resolve();work=pathlib.Path(work).resolve()
     manifest=json.loads((work/'input-manifest.json').read_text())
@@ -47,6 +64,7 @@ def main(repo,work,mode='full'):
     results=json.loads((sh/'cache'/('b-'+b.chain_of(repo))/'_b_build.json').read_text())
     failed=[r for r in results if r['st']!='ok']
     if len(results)!=73496 or len(failed)>11:raise ValueError(f'Unexpected shader build results: {len(results)} total, {len(failed)} failed')
+    if os.environ.get('EXTERNAL_LAUNCHER')=='1':checkpoint_resources(b,repo,work,g,ios,results,env,logs)
     from cache_layout import verify_geometry
     geometry={fields[3]:'geometry' for line in g.table('shader_map.tsv').read_text().splitlines() if len(fields:=line.split('\t'))==5 and fields[2]=='geometry'}
     verify_geometry(geometry,sh/'cache'/('b-'+b.chain_of(repo)),ios/('b-'+b.chain_of(repo)),b.chain_of(repo))

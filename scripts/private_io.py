@@ -7,7 +7,7 @@ import sys
 import datetime
 
 DATA_REPOSITORY='fghjrtyuvbnm/ffr-nxnative-private-build'
-PROGRESS_STAGES={'downloading-caches','verifying-caches','cached-shader-pass','preparing-xcode','compiling-app','packing-template','template-ready'}
+PROGRESS_STAGES={'downloading-caches','verifying-caches','cached-shader-pass','saving-shader-resources','preparing-xcode','compiling-app','packing-template','template-ready'}
 
 def progress(work,stage,current=0,total=0):
     if stage not in PROGRESS_STAGES:raise ValueError('Unknown build progress stage')
@@ -72,6 +72,17 @@ def publish_template(work):
     gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Unsigned external-folder launcher template','--notes','Private output; no physical USB or gameplay validation.','--prerelease')
     gh('release','upload',tag,'--repo',DATA_REPOSITORY,*sorted((work/'output').glob('template.part*')),work/'output/result-manifest.json')
     if (work/'shard-merge-verification.json').is_file():gh('release','upload',tag,'--repo',DATA_REPOSITORY,work/'shard-merge-verification.json')
+
+def publish_resources(work):
+    work=pathlib.Path(work);tag='compiled-resources-'+os.environ['GITHUB_RUN_ID'];out=work/'compiled-resources'
+    gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Compiled resources checkpoint (not an application)','--notes','Private resources and real upstream shader tables; reuse for launcher-only builds.','--prerelease')
+    gh('release','upload',tag,'--repo',DATA_REPOSITORY,*sorted(out.glob('template.part*')),out/'result-manifest.json',out/'geometry-descriptors.json')
+
+def download_resources(work,source_run):
+    if not str(source_run).isdigit():raise ValueError('Resource run must be numeric')
+    dest=pathlib.Path(work)/'resource-download';dest.mkdir()
+    gh('release','download','compiled-resources-'+str(source_run),'--repo',DATA_REPOSITORY,'--dir',dest,'--pattern','template.part*','--pattern','result-manifest.json')
+    return dest
 
 def save_logs(work):
     import tarfile

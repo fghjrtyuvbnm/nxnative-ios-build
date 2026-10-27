@@ -21,16 +21,17 @@ def cache_layout(keys,manifests,successful):
     return sorted(missing)
 
 def verify_geometry(keys,mac,ios,chain):
+    targets=(pathlib.Path(ios),) if mac is None else (pathlib.Path(mac),pathlib.Path(ios))
     for key,stage in keys.items():
         if stage!='geometry':continue
-        for directory in (pathlib.Path(mac),pathlib.Path(ios)):
+        for directory in targets:
             path=directory/(key+'_b.json')
             if not path.is_file():raise ValueError('Geometry descriptor was not regenerated')
             meta=json.loads(path.read_text())
             if meta.get('chain')!=chain or meta.get('dm_ctl')!=key or meta.get('stage')!='gs':raise ValueError('Geometry output identity differs')
             if 'gs_slice' in meta:
                 value=meta['gs_slice']
-                if not isinstance(value,dict) or type(value.get('loc')) is not int or value['loc']<0 or type(value.get('comp')) is not int or value['comp'] not in range(4) or meta.get('bindings')!=[]:raise ValueError('Invalid layer-selection geometry descriptor')
+                if not isinstance(value,dict) or type(value.get('loc')) is not int or value['loc']<0 or value.get('comp') not in ('x','y','z','w') or meta.get('bindings')!=[]:raise ValueError('Invalid layer-selection geometry descriptor')
             else:
                 if 'geometry' not in meta or meta.get('msl_entry_kind')!='kernel':raise ValueError('Geometry lowering was not generated')
                 for suffix in ('_b','_bg0','_bg1','_bg2','_bg3','_bg4','_bgv'):
