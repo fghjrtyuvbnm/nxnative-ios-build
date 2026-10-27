@@ -94,6 +94,7 @@ schemes:
             print('RED verified: stock launcher has no external-folder picker',flush=True)
         elif p.returncode:raise RuntimeError('External folder UI test failed; inspect external.log')
         else:print('GREEN verified: folder picker opens, cancellation retains launcher and Play stays disabled without data',flush=True)
-    subprocess.run(['xcrun','simctl','io',device,'screenshot',work/'external-launcher.png'],check=True)
+    shot=subprocess.run(['xcrun','simctl','io',device,'screenshot',work/'external-launcher.png'],capture_output=True,text=True,timeout=90)
+    if shot.returncode:print('Optional final screenshot unavailable; the successful XCTest assertions and their screenshot attachment remain in external.xcresult',flush=True)
 
 if __name__=='__main__':run(*sys.argv[1:])
