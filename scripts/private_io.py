@@ -4,8 +4,20 @@ import os
 import pathlib
 import subprocess
 import sys
+import datetime
 
 DATA_REPOSITORY='fghjrtyuvbnm/ffr-nxnative-private-build'
+PROGRESS_STAGES={'downloading-caches','verifying-caches','cached-shader-pass','preparing-xcode','compiling-app','packing-template','template-ready'}
+
+def progress(work,stage,current=0,total=0):
+    if stage not in PROGRESS_STAGES:raise ValueError('Unknown build progress stage')
+    run=os.environ['GITHUB_RUN_ID']
+    if not run.isdigit():raise ValueError('Invalid execution run')
+    path=pathlib.Path(work)/('build-progress-'+run+'.json')
+    value={'run':int(run),'stage':stage,'current':current,'total':total,'updated_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value));tmp.replace(path)
+    p=gh('release','upload','progress-'+data_run(),'--repo',DATA_REPOSITORY,'--clobber',path,check=False)
+    if p.returncode:print('Private progress upload deferred; build continues',flush=True)
 
 def data_repository():return DATA_REPOSITORY
 
@@ -59,6 +71,7 @@ def publish_template(work):
     work=pathlib.Path(work);tag='unsigned-template-'+os.environ['GITHUB_RUN_ID']
     gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Unsigned external-folder launcher template','--notes','Private output; no physical USB or gameplay validation.','--prerelease')
     gh('release','upload',tag,'--repo',DATA_REPOSITORY,*sorted((work/'output').glob('template.part*')),work/'output/result-manifest.json')
+    if (work/'shard-merge-verification.json').is_file():gh('release','upload',tag,'--repo',DATA_REPOSITORY,work/'shard-merge-verification.json')
 
 def save_logs(work):
     import tarfile

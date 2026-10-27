@@ -4,7 +4,8 @@ import pathlib
 import subprocess
 import sys
 import time
-from private_io import assert_private, download_input, publish_template, save_logs
+import json
+from private_io import assert_private, download_input, publish_template, save_logs, PROGRESS_STAGES
 
 def main(mode,repo,work,*args):
     assert_private()
@@ -19,7 +20,12 @@ def main(mode,repo,work,*args):
             command=[sys.executable,'-u',pathlib.Path(__file__).with_name('pipeline.py'),mode,repo,work,*args]
             child=subprocess.Popen(list(map(str,command)),stdout=log,stderr=subprocess.STDOUT)
             while child.poll() is None:
-                print(f'{mode}: running; elapsed {round(time.monotonic()-start)}s; raw diagnostics remain private',flush=True)
+                stage='running'
+                try:
+                    value=json.loads((work/('build-progress-'+os.environ['GITHUB_RUN_ID']+'.json')).read_text())
+                    if value['stage'] in PROGRESS_STAGES:stage=f"{value['stage']} {int(value['current'])}/{int(value['total'])}"
+                except (OSError,ValueError,KeyError):pass
+                print(f'{mode}: {stage}; elapsed {round(time.monotonic()-start)}s; raw diagnostics remain private',flush=True)
                 time.sleep(30)
             status=child.returncode
         if status==0 and mode=='assemble':publish_template(work)

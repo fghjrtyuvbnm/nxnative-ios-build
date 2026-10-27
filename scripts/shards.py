@@ -3,10 +3,32 @@ import gzip
 import hashlib
 import json
 import pathlib
+import re
 import shutil
 import tarfile
 from contracts import TITLE, BUILD, SOURCE, check_identity, sha256
 from transfer import split_file
+
+VARIANT_BINARY=re.compile(r'^shader/cache/cas/variant/[0-9a-f]{64}/(?:mac|ios)\.metallib$')
+METAL_BINARY=re.compile(r'^shader/cache/cas/metallib/(?:mac|ios)/[0-9a-f]{2}/[0-9a-f]{64}\.metallib$')
+VARIANT_FILE=re.compile(r'^shader/cache/cas/variant/[0-9a-f]{64}/(?:metal|fetch\.json|mac\.metallib|ios\.metallib)$')
+
+def derived_conflicts(manifests):
+    """Never choose between differing compiled derivatives; regenerate only those entries."""
+    seen={};groups=set();discard=set();all_names=set()
+    for manifest in manifests:
+        names=set()
+        for row in manifest['files']:
+            name=row['path'];safe_name(name)
+            if name in names:raise ValueError('Duplicate shader manifest entries')
+            names.add(name);all_names.add(name)
+            old=seen.setdefault(name,row['sha256'])
+            if old==row['sha256']:continue
+            if VARIANT_BINARY.fullmatch(name):groups.add(name.rsplit('/',1)[0])
+            elif METAL_BINARY.fullmatch(name):discard.add(name)
+            else:raise ValueError('Source, reflection or base cache conflict: '+name)
+    discard.update(name for name in all_names if name.rsplit('/',1)[0] in groups)
+    return discard
 
 def partition(keys,count):
     if count<1 or len(keys)!=len(set(keys)):raise ValueError('Invalid partition input')
@@ -46,7 +68,9 @@ def pack(root,prefixes,out,kind,metadata):
     (out/'bundle-manifest.json').write_text(json.dumps(m,indent=2),encoding='utf-8')
     return m
 
-def restore(src,root,kind):
+def restore(src,root,kind,exclude=None):
+    exclude=set(exclude or ())
+    if any(not (VARIANT_FILE.fullmatch(name) or METAL_BINARY.fullmatch(name)) for name in exclude):raise ValueError('Only disposable derived cache entries can be excluded')
     src=pathlib.Path(src);root=pathlib.Path(root)
     m=json.loads((src/'bundle-manifest.json').read_text());check_identity(m)
     if m.get('source')!=SOURCE or m.get('kind')!=kind:raise ValueError('Wrong shader archive provenance')
@@ -65,6 +89,12 @@ def restore(src,root,kind):
             if not entry.isfile() or entry.name not in expected or entry.name in seen:raise ValueError('Unexpected shader archive member')
             row=expected[entry.name];seen.add(entry.name)
             if entry.size!=row['bytes']:raise ValueError('Shader archive entry length mismatch')
+            if entry.name in exclude:
+                digest=hashlib.sha256()
+                with t.extractfile(entry) as f:
+                    for block in iter(lambda:f.read(8*1024*1024),b''):digest.update(block)
+                if digest.hexdigest()!=row['sha256']:raise ValueError('Discarded derivative failed integrity verification')
+                continue
             p=root/entry.name;p.parent.mkdir(parents=True,exist_ok=True)
             if p.is_symlink():raise ValueError('Shader merge target symlink')
             tmp=p.with_name(p.name+'.restore-tmp')

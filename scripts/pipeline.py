@@ -1,5 +1,6 @@
 """Checkpointed partial builds; the final pass is still the upstream full build."""
 import collections
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -11,8 +12,8 @@ import subprocess
 import sys
 import time
 import shards
-from contracts import TITLE, SOURCE, sha256
-from private_io import gh, data_repository, data_run
+from contracts import TITLE, SOURCE, sha256, check_identity
+from private_io import gh, data_repository, data_run, progress
 
 COUNT=16
 
@@ -162,9 +163,21 @@ def shard(repo,work,index):
 def assemble(repo,work):
     repo,work,b,g,env,prepared=restore_prepared(repo,work)
     keys,pairs=key_map(g,work);expected=shards.partition(list(keys),COUNT);seen=set();failed={}
-    for index in range(COUNT):
-        download=work/f'cache-download-{index:02}';download_bundle(f'cache-{data_run()}-{index:02}',download)
-        meta=shards.restore(download,work,'cache')['metadata']
+    downloads=[work/f'cache-download-{index:02}' for index in range(COUNT)]
+    progress(work,'downloading-caches',0,COUNT)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        futures=[pool.submit(download_bundle,f'cache-{data_run()}-{index:02}',dest) for index,dest in enumerate(downloads)]
+        for count,future in enumerate(concurrent.futures.as_completed(futures),1):
+            future.result();progress(work,'downloading-caches',count,COUNT)
+    manifests=[json.loads((dest/'bundle-manifest.json').read_text()) for dest in downloads]
+    for manifest in manifests:
+        check_identity(manifest)
+        if manifest.get('source')!=SOURCE or manifest.get('kind')!='cache':raise ValueError('Wrong cache provenance')
+    excluded=shards.derived_conflicts(manifests)
+    progress(work,'verifying-caches',0,COUNT)
+    for index,download in enumerate(downloads):
+        meta=shards.restore(download,work,'cache',exclude=excluded)['metadata']
+        progress(work,'verifying-caches',index+1,COUNT)
         if meta['identity']!=prepared['identity'] or not meta['complete'] or meta['index']!=index or meta['count']!=COUNT or meta['base_keys']!=expected[index]:raise ValueError('Incomplete or incompatible shader shard')
         if seen & set(meta['base_keys']):raise ValueError('Overlapping base shader partitions')
         seen.update(meta['base_keys'])
@@ -179,7 +192,7 @@ def assemble(repo,work):
         for name in ('mac/'+key+'_b.metal','mac/'+key+'_b.json','mac/'+key+'_b.metallib','ios/'+key+'_b.json','ios/'+key+'_b.metallib'):
             if not (directory/name).is_file():raise ValueError('Incomplete successful shader cache entry')
     if len(code_fps)!=1:raise ValueError('Shard cache source fingerprints differ')
-    (work/'shard-merge-verification.json').write_text(json.dumps({'keys':len(seen),'shards':COUNT,'failed':list(failed.values()),'identity':prepared['identity']},indent=2))
+    (work/'shard-merge-verification.json').write_text(json.dumps({'keys':len(seen),'shards':COUNT,'failed':list(failed.values()),'identity':prepared['identity'],'discarded_derived_cache_files':sorted(excluded),'recompiled_variant_groups':len({p.rsplit('/',1)[0] for p in excluded if '/variant/' in p})},indent=2))
     # Upstream's full pass verifies/reuses each shader cache entry and writes the real stamp and c1 tables.
     import cloud_build
     if os.environ.get('EXTERNAL_LAUNCHER')=='1':

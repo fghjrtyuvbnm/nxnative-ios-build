@@ -12,6 +12,8 @@ Both workflows are manually dispatched. No pull request event runs privileged co
 
 `resume.yml` restores the prepared shader package and completed content-addressed checkpoints from private build namespace `40459496301`. Completed shards are integrity checked and reused; missing shards are compiled. Assembly validates source, compiler identity, exact partition coverage and hashes before running the upstream full cached pass to generate its real c1/extent tables and library stamp. No fabricated stamps are used. The unsigned external-folder template is saved only as a release in the private repository.
 
+Assembly in run `40469277783` correctly stopped on differing compiled derivative bytes under the same cache key. Windows comparison of all 16 manifests found 19 affected variant groups, with identical generated source and reflection and no base-cache conflicts. The merge now discards those entire optional groups and lets the unchanged upstream full pass regenerate them; it never picks an arbitrary binary. Source/reflection/base conflicts remain fatal. Even discarded archive members must pass their own recorded hashes. Cache downloads are independent and parallel; restoration into the common CAS stays sequential. Stage/count progress is saved privately without raw tool output.
+
 `ui-tests.yml` uses a tiny production-launcher harness without game data or private credentials. It verifies Foundation directory lifecycle and an iOS Simulator folder picker. A missing simulator/runtime is an environment failure, not a behavioral test failure.
 
 ## External folder output

@@ -9,6 +9,11 @@ import plistlib
 from contracts import TITLE, BUILD, sha256
 from transfer import split_file
 
+def stage_progress(work,label):
+    if os.environ.get('EXTERNAL_LAUNCHER')=='1':
+        from private_io import progress
+        progress(work,label)
+
 def main(repo,work,mode='full'):
     repo=pathlib.Path(repo).resolve();work=pathlib.Path(work).resolve()
     manifest=json.loads((work/'input-manifest.json').read_text())
@@ -37,6 +42,7 @@ def main(repo,work,mode='full'):
         b.decode_ue_shaders(repo,{'v1':ex},'v1',patched,work,env,logs,g)
         pkey=b.split_shaders(sys.executable,repo,[ex/'RomFS'],[ex/'ExeFS/main'],sh/'pkg',env,logs,g,dlc_roms=list((work/'aoc').glob('*')))
     else:raise ValueError('Unknown build mode')
+    stage_progress(work,'cached-shader-pass')
     ios=b.build_shaders(sys.executable,repo,sh,xlate,env,logs,g,pkey)
     results=json.loads((sh/'cache'/('b-'+b.chain_of(repo))/'_b_build.json').read_text())
     failed=[r for r in results if r['st']!='ok']
@@ -46,6 +52,7 @@ def main(repo,work,mode='full'):
         AOC=str(work/'aoc'),DM_XCODE_DERIVED_DATA=str(work/'xcode-dd'),DM_LANG='zh-Hans',DM_SHOW_FPS='1',DM_PSO_GPUS='none',DM_ENTITLEMENTS='')
     if (ex/'icon.jpg').is_file():ie['DM_ICON']=str(ex/'icon.jpg')
     b.PROG.stage('Prepare unsigned Xcode project')
+    stage_progress(work,'preparing-xcode')
     b.run(['bash',repo/'dm/ios/tools/build_ipa.sh','--prepare-xcode'],logs/'prepare_xcode.log',env=ie)
     external=os.environ.get('EXTERNAL_LAUNCHER')=='1'
     if external:
@@ -56,6 +63,7 @@ def main(repo,work,mode='full'):
                     DMExternalRomFSMarker=g.get('romfs_marker'),LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
         plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned iOS application')
+    stage_progress(work,'compiling-app')
     dd=work/'xcode-dd'
     project=work/'ipa/xcode/DmIOS.xcodeproj'
     scheme=f'FINAL FANTASY RESONANCE ({TITLE})'
@@ -67,6 +75,7 @@ def main(repo,work,mode='full'):
     out=work/'output';out.mkdir(exist_ok=True)
     template=out/'FFR-HK-unsigned-template.ipa';arc='Payload/DmIOS.app';chain=b.chain_of(repo)
     b.PROG.stage('Pack compiled template without local RomFS')
+    stage_progress(work,'packing-template')
     cmd=[sys.executable,repo/'dm/ios/tools/pack_ipa.py',template,'--store',g.get('zip_store')]
     for name in ('_CodeSignature','embedded.mobileprovision','romfs','msl','aoc'):cmd+=['--skip',f'{arc}/{name}']
     cmd += [f'{arc}={app}',f'{arc}/msl/b-{chain}={ios}/b-{chain}',f'{arc}/aoc={work}/aoc']
@@ -76,6 +85,7 @@ def main(repo,work,mode='full'):
         'parts':parts,'romfs_packaging':'Required on Windows','signed':False,'runtime_tested':False,'shader_total':len(results),'shader_failed':failed}
     if external:report.update(external_data_runtime=True,external_data_identity=identity,romfs_packaging='Export separate data folder on Windows')
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
+    stage_progress(work,'template-ready')
     b.PROG.close()
     print('Unsigned template ready. Complete the IPA on Windows with the original extracted RomFS.',flush=True)
 
