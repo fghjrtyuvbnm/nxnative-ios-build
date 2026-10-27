@@ -17,9 +17,11 @@ def stage_progress(work,label):
 def checkpoint_resources(b,repo,work,g,ios,results,env,logs):
     stage_progress(work,'saving-shader-resources')
     out=work/'compiled-resources';out.mkdir();archive=out/'compiled-resources.zip';chain=b.chain_of(repo);arc='Payload/DmIOS.app'
+    tables=out/'tables';tables.mkdir()
+    for name in ('c1_full.tsv','cb_extent.tsv'):(tables/name).write_bytes(g.table(name).read_bytes())
     command=[sys.executable,repo/'dm/ios/tools/pack_ipa.py',archive,'--store',g.get('zip_store'),
              f'{arc}/msl/b-{chain}={ios}/b-{chain}',f'{arc}/aoc={work}/aoc',
-             f'{arc}/dm/c1_full.tsv={g.table("c1_full.tsv")}',f'{arc}/dm/cb_extent.tsv={g.table("cb_extent.tsv")}']
+             f'{arc}/dm={tables}']
     b.run(command,logs/'pack_resources.log',env=env)
     report={'title_id':TITLE,'main_build':BUILD,'resource_only':True,'signed':False,'external_data_runtime':False,
             'template_sha256':sha256(archive),'template_bytes':archive.stat().st_size,'parts':split_file(archive,out,'template'),
