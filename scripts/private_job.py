@@ -5,12 +5,12 @@ import subprocess
 import sys
 import time
 import json
-from private_io import assert_private, download_input, download_resources, publish_template, save_logs, PROGRESS_STAGES
+from private_io import assert_private, download_input, download_resources, publish_template, save_logs, shader_live, PROGRESS_STAGES
 
 def main(mode,repo,work,*args):
     assert_private()
     work=pathlib.Path(work).resolve();logs=work/'logs';logs.mkdir(parents=True,exist_ok=True)
-    start=time.monotonic();status=1
+    start=time.monotonic();status=1;live_at=0
     try:
         with (logs/'private-job.log').open('w') as log:
             if mode in ('assemble','launcher'):
@@ -27,6 +27,8 @@ def main(mode,repo,work,*args):
                 try:
                     value=json.loads((work/('build-progress-'+os.environ['GITHUB_RUN_ID']+'.json')).read_text())
                     if value['stage'] in PROGRESS_STAGES:stage=f"{value['stage']} {int(value['current'])}/{int(value['total'])}"
+                    if value['stage']=='cached-shader-pass' and time.monotonic()-live_at>=120:
+                        shader_live(work);live_at=time.monotonic()
                 except (OSError,ValueError,KeyError):pass
                 print(f'{mode}: {stage}; elapsed {round(time.monotonic()-start)}s; raw diagnostics remain private',flush=True)
                 time.sleep(30)

@@ -19,6 +19,15 @@ def progress(work,stage,current=0,total=0):
     p=gh('release','upload','progress-'+data_run(),'--repo',DATA_REPOSITORY,'--clobber',path,check=False)
     if p.returncode:print('Private progress upload deferred; build continues',flush=True)
 
+def shader_live(work):
+    work=pathlib.Path(work);run=os.environ['GITHUB_RUN_ID']
+    report=json.loads((work/'shard-merge-verification.json').read_text())
+    value={'run':int(run),'base_libraries_ready':sum(1 for _ in (work/'shader/ios').glob('b-*/*_b.metallib')),
+           'expected_libraries':report['keys']-len(report.get('geometry_pending_full_pass',[])),
+           'updated_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    path=work/('shader-live-'+run+'.json');path.write_text(json.dumps(value))
+    gh('release','upload','progress-'+data_run(),'--repo',DATA_REPOSITORY,'--clobber',path,check=False)
+
 def data_repository():return DATA_REPOSITORY
 
 def checkpoint_manifest(tag,kind,optional=False):
