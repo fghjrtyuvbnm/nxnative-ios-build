@@ -18,6 +18,8 @@ Both workflows are manually dispatched. No pull request event runs privileged co
 
 Windows completes packaging using the full local extraction. The output is an unsigned launcher IPA and a separate `FFRS-Data` folder containing RomFS, DLC, iOS shader libraries and a versioned file manifest. The launcher opens the selected folder in place through the iOS Files picker, persists a bookmark, retains authorization during play, and rechecks the data before native preload. Saves, logs and temporary files remain on the device. Copy the complete exported folder to a drive visible in Files and keep it connected during play.
 
+Run `python scripts/finish_windows.py <private-template-download> <local-build-directory> <new-launcher.ipa>`. The external-folder contract is read from the hash-checked template metadata; no machine-local mode flag is required. A real CLI regression in a fresh temporary checkout reproduced the earlier accidental embedded-data fallback and passes after this repair.
+
 The IPA necessarily contains executable game code and host tables. It remains private. No signing or installation is performed. Physical external-drive behavior and full gameplay require later device validation; build and simulator success alone do not establish those.
 
 The engine currently targets iOS 26 or later. For a drive shared between Windows and iOS, use a Files-compatible filesystem such as exFAT. The actual UCAS resource is 5,976,850,224 bytes and cannot fit as one file on FAT32. Apple's supported external-storage formats and partition requirements are documented at https://support.apple.com/guide/iphone/external-storage-devices-iph95baac91f/26/ios/26 . This build does not format or modify any external drive.
