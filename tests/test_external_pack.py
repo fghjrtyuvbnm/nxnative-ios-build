@@ -35,6 +35,7 @@ class ExternalPack(unittest.TestCase):
             z.writestr('Payload/DmIOS.app/Info.plist',plistlib.dumps(info))
             executable=zipfile.ZipInfo('Payload/DmIOS.app/DmIOS');executable.create_system=3;executable.external_attr=0o100755<<16
             z.writestr(executable,b'fixture code')
+            z.writestr('Payload/DmIOS.app/compressed-fixture.bin',b'fixture payload'*2048,compress_type=zipfile.ZIP_DEFLATED)
             z.writestr('Payload/DmIOS.app/msl/b-test/inputs.tsv',f'game\t{TITLE}\ninputs\tinput\n')
             z.writestr('Payload/DmIOS.app/msl/b-test/a_b.metallib',b'fixture library')
             z.writestr('Payload/DmIOS.app/aoc/2/content',b'dlc')

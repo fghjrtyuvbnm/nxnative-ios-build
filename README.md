@@ -34,6 +34,8 @@ The iOS Simulator regression succeeded in run `40469728997`: the production pick
 
 The compiled template from run `40482789385` contains 73,496 successful shaders and zero failures. Windows exported an 86,658,273-byte unsigned ARM64 iOS launcher and a separate 12,279,166,314-byte data directory with 157,038 files. All exported file hashes and IPA ZIP CRC checks passed. The executable targets iOS 26.0, has no code signature, and the final IPA contains no RomFS, shader-library or DLC directory. The complete 5,976,850,224-byte UCAS resource is in the separate data directory. These artifacts remain private. Physical USB access and game execution have not been verified on a device.
 
+When the Windows upload is slow, `publish-verified.yml` can reuse the completed private template on a standard Linux runner. It strips resources using the same ZIP procedure, requires the exact size and SHA-256 from the private Windows verification report, checks CRC, and publishes only an identical IPA to the private release. A byte mismatch fails without publishing; it never recompiles game code or shaders. The `-cloud` filename distinguishes this asset from an ongoing Windows transfer.
+
 ## Checks
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`

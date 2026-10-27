@@ -1,0 +1,23 @@
+name: Publish exact Windows-verified private launcher
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Run owning the completed private unsigned template
+        required: true
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+      SOURCE_RUN: ${{ inputs.source_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Reuse template and require exact verified output bytes
+        run: python3 -u scripts/cloud_publish_launcher.py "$SOURCE_RUN" "$RUNNER_TEMP/private-publication"
