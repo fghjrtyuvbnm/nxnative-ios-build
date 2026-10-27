@@ -13,7 +13,9 @@ def run(repo,work):
     candidates=[d for runtime,ds in devices.items() if 'iOS-26' in runtime for d in ds if d.get('isAvailable') and 'iPhone' in d['name']]
     if not candidates:raise RuntimeError('No iOS 26 simulator runtime is installed; this is an environment failure, not behavioral RED')
     device=candidates[0]['udid']
-    for mode in ('stock','external'):
+    subprocess.run(['xcrun','simctl','boot',device],check=False,capture_output=True)
+    subprocess.run(['xcrun','simctl','bootstatus',device,'-b'],check=True,timeout=180)
+    for mode in (('external',) if os.environ.get('UI_EXTERNAL_ONLY')=='1' else ('stock','external')):
         project=work/mode;src=project/'Sources';tests=project/'Tests';src.mkdir(parents=True);tests.mkdir()
         if mode=='external':
             from apply_runtime import apply
@@ -75,9 +77,16 @@ schemes:
         (project/'project.yml').write_text(config,encoding='utf-8')
         subprocess.run(['xcodegen','generate','--spec',project/'project.yml'],cwd=project,check=True)
         log=work/(mode+'.log')
-        with log.open('w') as f:
-            p=subprocess.run(['xcodebuild','-project',project/'FolderHarness.xcodeproj','-scheme','FolderHarness','-destination','id='+device,
-                '-derivedDataPath',project/'dd','-resultBundlePath',work/(mode+'.xcresult'),'CODE_SIGNING_ALLOWED=NO','test'],stdout=f,stderr=subprocess.STDOUT)
+        print('Begin production launcher UI test: '+mode,flush=True)
+        try:
+            with log.open('w') as f:
+                p=subprocess.run(['xcodebuild','-project',project/'FolderHarness.xcodeproj','-scheme','FolderHarness','-destination','id='+device,
+                    '-parallel-testing-enabled','NO','-maximum-concurrent-test-simulator-destinations','1',
+                    '-test-timeouts-enabled','YES','-default-test-execution-time-allowance','60','-maximum-test-execution-time-allowance','120',
+                    '-derivedDataPath',project/'dd','-resultBundlePath',work/(mode+'.xcresult'),'CODE_SIGNING_ALLOWED=NO','test'],stdout=f,stderr=subprocess.STDOUT,timeout=420)
+        except subprocess.TimeoutExpired:
+            print('\n'.join(log.read_text(errors='replace').splitlines()[-120:]),flush=True)
+            raise RuntimeError('iOS simulator test timed out; no behavioral pass is claimed')
         text=log.read_text(errors='replace')
         if mode=='stock':
             if p.returncode==0 or 'XCTAssertTrue failed - EXTERNAL_FOLDER_PICKER_MISSING' not in text:

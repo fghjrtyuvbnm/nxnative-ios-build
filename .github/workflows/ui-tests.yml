@@ -5,10 +5,11 @@ permissions:
   contents: read
 env:
   GH_TOKEN: ${{ github.token }}
+  UI_EXTERNAL_ONLY: '1'
 jobs:
   simulator:
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -21,7 +22,7 @@ jobs:
       - name: Production launcher on iOS Simulator without any game resources
         run: python -u scripts/test_external_ui.py "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/ui-tests"
       - name: Print test diagnostics without game data
-        if: failure()
+        if: always()
         run: |
           for log in "$RUNNER_TEMP/ui-tests/stock.log" "$RUNNER_TEMP/ui-tests/external.log"; do
             if [ -f "$log" ]; then tail -100 "$log"; fi
