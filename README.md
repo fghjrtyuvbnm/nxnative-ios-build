@@ -8,7 +8,7 @@ The upstream engine is fetched from `seedds/nxnative` at `cdc6cef6b0250fcb54a061
 
 `scripts/private_io.py` fixes every game-data transfer to a separate private repository and verifies that it is still private. The public repository token has read-only code access. Set the repository secret `PRIVATE_DATA_TOKEN` to a short-lived fine-grained PAT authorized only for that private repository, with Contents read/write and Actions read-only. Do not use a token granting access to all repositories.
 
-Both workflows are manually dispatched. No pull request event runs privileged code. The data-bearing workflow uploads no public artifacts, caches or releases. Raw tool output is captured on the ephemeral runner and saved as private diagnostics; public output contains only stages and counts. Private data are temporarily processed by GitHub-hosted macOS runners, not copied into the public repository.
+All workflows are manually dispatched. No pull request event runs privileged code. The data-bearing workflows upload no public artifacts, caches or releases. Raw tool output is captured on the ephemeral runner and saved as private diagnostics; public output contains only stages and counts. Private data are temporarily processed by GitHub-hosted macOS runners, not copied into the public repository.
 
 `resume.yml` restores the prepared shader package and completed content-addressed checkpoints from private build namespace `40459496301`. Completed shards are integrity checked and reused; missing shards are compiled. Assembly validates source, compiler identity, exact partition coverage and hashes before running the upstream full cached pass to generate its real c1/extent tables and library stamp. No fabricated stamps are used. The unsigned external-folder template is saved only as a release in the private repository.
 
@@ -32,10 +32,12 @@ The engine currently targets iOS 26 or later. For a drive shared between Windows
 
 The iOS Simulator regression succeeded in run `40469728997`: the production picker opens, cancellation retains the launcher, and Play is disabled without valid data. Foundation lifecycle tests also passed. The earlier run `40468057809` established the stock behavioral RED and external-folder GREEN, but its optional final screenshot command failed afterward; it is not recorded as an overall successful workflow.
 
+The compiled template from run `40482789385` contains 73,496 successful shaders and zero failures. Windows exported an 86,658,273-byte unsigned ARM64 iOS launcher and a separate 12,279,166,314-byte data directory with 157,038 files. All exported file hashes and IPA ZIP CRC checks passed. The executable targets iOS 26.0, has no code signature, and the final IPA contains no RomFS, shader-library or DLC directory. The complete 5,976,850,224-byte UCAS resource is in the separate data directory. These artifacts remain private. Physical USB access and game execution have not been verified on a device.
+
 ## Checks
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
-`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml`
+`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml`
 
 The private-destination regression first failed against the previous repository-relative transfer code, then passed after pinning the destination. The directory-scope regression likewise reproduced an original-granted-URL lifetime bug before its fix. Other new scaffold import errors are not claimed as behavioral RED evidence.
