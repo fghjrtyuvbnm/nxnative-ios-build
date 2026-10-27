@@ -1,0 +1,51 @@
+name: Resume private game build on public source
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: private-game-cache-resume
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ github.token }}
+  PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+  DATA_BUILD_ID: '40459496301'
+  EXTERNAL_LAUNCHER: '1'
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify private destination before starting Mac runners
+        run: python3 scripts/private_io.py check
+  shader:
+    needs: access
+    runs-on: macos-26
+    timeout-minutes: 115
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Verify or complete private shader checkpoint
+        env:
+          SHADER_INDEX: ${{ matrix.index }}
+        run: python -u scripts/private_job.py shard "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game-$SHADER_INDEX" "$SHADER_INDEX"
+  assemble:
+    needs: shader
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Merge private caches and compile unsigned external-folder launcher
+        run: python -u scripts/private_job.py assemble "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game"

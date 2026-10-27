@@ -1,0 +1,32 @@
+name: Fixed public source build environment
+description: Install tools and the fixed, reviewed nxnative source
+runs:
+  using: composite
+  steps:
+    - name: Check public code repository and tools
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: '1'
+      run: |
+        set -euo pipefail
+        test "$GITHUB_REPOSITORY" = fghjrtyuvbnm/nxnative-ios-build
+        test "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" = false
+        test "$(uname -m)" = arm64
+        brew install xcodegen zstd spirv-cross glslang python@3.12
+        if ! dotnet --list-sdks | grep -q '^10\.'; then
+          brew install dotnet@10
+          echo "$(brew --prefix dotnet@10)/bin" >> "$GITHUB_PATH"
+        fi
+        if ! xcrun -sdk iphoneos metal --version; then xcodebuild -downloadComponent MetalToolchain; fi
+        "$(brew --prefix python@3.12)/bin/python3.12" -m venv "$RUNNER_TEMP/venv"
+        "$RUNNER_TEMP/venv/bin/pip" install lz4 capstone fonttools backports.zstd
+        echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+    - name: Fixed source, HK profile and regression tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        git init "$RUNNER_TEMP/nxnative"
+        git -C "$RUNNER_TEMP/nxnative" fetch --depth=1 https://github.com/seedds/nxnative.git cdc6cef6b0250fcb54a061e4c55d56382b5d18ad
+        git -C "$RUNNER_TEMP/nxnative" checkout --detach FETCH_HEAD
+        python scripts/apply_profile.py "$RUNNER_TEMP/nxnative"
+        NXNATIVE_REPO="$RUNNER_TEMP/nxnative" python -m unittest discover -s tests -v
