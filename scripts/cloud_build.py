@@ -47,6 +47,9 @@ def main(repo,work,mode='full'):
     results=json.loads((sh/'cache'/('b-'+b.chain_of(repo))/'_b_build.json').read_text())
     failed=[r for r in results if r['st']!='ok']
     if len(results)!=73496 or len(failed)>11:raise ValueError(f'Unexpected shader build results: {len(results)} total, {len(failed)} failed')
+    from cache_layout import verify_geometry
+    geometry={fields[3]:'geometry' for line in g.table('shader_map.tsv').read_text().splitlines() if len(fields:=line.split('\t'))==5 and fields[2]=='geometry'}
+    verify_geometry(geometry,sh/'cache'/('b-'+b.chain_of(repo)),ios/('b-'+b.chain_of(repo)),b.chain_of(repo))
     ie=dict(env,W=str(work/'ipa'),PATCHED=str(patched),ROMFS=str(ex/'RomFS'),MSL_IOS=str(ios),GFXAPI='nvn',FONT_PY=sys.executable,
         DM_DISPLAY_NAME='FINAL FANTASY RESONANCE',DM_BUNDLE_ID='org.nxnative.'+TITLE.lower(),DM_APP_VERSION='1.0.1',
         AOC=str(work/'aoc'),DM_XCODE_DERIVED_DATA=str(work/'xcode-dd'),DM_LANG='zh-Hans',DM_SHOW_FPS='1',DM_PSO_GPUS='none',DM_ENTITLEMENTS='')

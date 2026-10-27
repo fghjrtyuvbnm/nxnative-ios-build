@@ -14,6 +14,8 @@ Both workflows are manually dispatched. No pull request event runs privileged co
 
 Assembly in run `40469277783` correctly stopped on differing compiled derivative bytes under the same cache key. Windows comparison of all 16 manifests found 19 affected variant groups, with identical generated source and reflection and no base-cache conflicts. The merge now discards those entire optional groups and lets the unchanged upstream full pass regenerate them; it never picks an arbitrary binary. Source/reflection/base conflicts remain fatal. Even discarded archive members must pass their own recorded hashes. Cache downloads are independent and parallel; restoration into the common CAS stays sequential. Stage/count progress is saved privately without raw tool output.
 
+Run `40474749685` passed all archive merges, then exposed an overly broad ordinary-index requirement. Upstream's geometry layer-selection fold deliberately emits only JSON, so it has no ordinary CAS entry. Windows verified all 73,495 ordinary cache layouts; the one uncached geometry descriptor is explicitly pending regeneration by the full pass. Non-geometry missing indices still fail. After the full pass, geometry folds require a valid descriptor and compute-lowered geometry requires every topology and reader library; no absent geometry output is silently accepted.
+
 `ui-tests.yml` uses a tiny production-launcher harness without game data or private credentials. It verifies Foundation directory lifecycle and an iOS Simulator folder picker. A missing simulator/runtime is an environment failure, not a behavioral test failure.
 
 ## External folder output

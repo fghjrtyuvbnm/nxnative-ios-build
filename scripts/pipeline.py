@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import shards
+from cache_layout import cache_layout
 from contracts import TITLE, SOURCE, sha256, check_identity
 from private_io import gh, data_repository, data_run, progress
 
@@ -174,6 +175,8 @@ def assemble(repo,work):
         check_identity(manifest)
         if manifest.get('source')!=SOURCE or manifest.get('kind')!='cache':raise ValueError('Wrong cache provenance')
     excluded=shards.derived_conflicts(manifests)
+    pending_geometry=cache_layout(keys,manifests,{r['key'] for m in manifests for r in m['metadata']['results'] if r['st']=='ok'})
+    del manifests
     progress(work,'verifying-caches',0,COUNT)
     for index,download in enumerate(downloads):
         meta=shards.restore(download,work,'cache',exclude=excluded)['metadata']
@@ -186,13 +189,14 @@ def assemble(repo,work):
     if seen!=set(keys) or len(failed)>11:raise ValueError(f'Incomplete shader coverage or unexpected failures: {len(failed)}')
     cas=work/'shader/cache/cas';code_fps=set()
     for key in set(keys)-set(failed):
+        if key in pending_geometry:continue # Regenerated and validated by the upstream full pass, never claimed as a cache hit.
         index=json.loads((cas/'index'/f'{key}.json').read_text());digest=index['digest']
         if not re.fullmatch('[0-9a-f]{64}',digest):raise ValueError('Unsafe shader cache digest')
         code_fps.add(index['code_fp']);directory=cas/'shader'/digest
         for name in ('mac/'+key+'_b.metal','mac/'+key+'_b.json','mac/'+key+'_b.metallib','ios/'+key+'_b.json','ios/'+key+'_b.metallib'):
             if not (directory/name).is_file():raise ValueError('Incomplete successful shader cache entry')
     if len(code_fps)!=1:raise ValueError('Shard cache source fingerprints differ')
-    (work/'shard-merge-verification.json').write_text(json.dumps({'keys':len(seen),'shards':COUNT,'failed':list(failed.values()),'identity':prepared['identity'],'discarded_derived_cache_files':sorted(excluded),'recompiled_variant_groups':len({p.rsplit('/',1)[0] for p in excluded if '/variant/' in p})},indent=2))
+    (work/'shard-merge-verification.json').write_text(json.dumps({'keys':len(seen),'shards':COUNT,'failed':list(failed.values()),'identity':prepared['identity'],'discarded_derived_cache_files':sorted(excluded),'recompiled_variant_groups':len({p.rsplit('/',1)[0] for p in excluded if '/variant/' in p}),'geometry_pending_full_pass':pending_geometry},indent=2))
     # Upstream's full pass verifies/reuses each shader cache entry and writes the real stamp and c1 tables.
     import cloud_build
     if os.environ.get('EXTERNAL_LAUNCHER')=='1':
