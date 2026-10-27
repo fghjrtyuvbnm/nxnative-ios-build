@@ -9,6 +9,26 @@ DATA_REPOSITORY='fghjrtyuvbnm/ffr-nxnative-private-build'
 
 def data_repository():return DATA_REPOSITORY
 
+def checkpoint_manifest(tag,kind,optional=False):
+    from contracts import SOURCE,check_identity
+    p=gh('release','download',tag,'--repo',DATA_REPOSITORY,'--pattern','bundle-manifest.json','--output','-',check=False)
+    if p.returncode:
+        if optional and ('not found' in p.stderr.lower() or '404' in p.stderr):return None
+        raise RuntimeError('Cannot inspect private checkpoint manifest')
+    m=json.loads(p.stdout);check_identity(m)
+    if m.get('source')!=SOURCE or m.get('kind')!=kind:raise ValueError('Checkpoint source or kind differs')
+    return m
+
+def cache_plan():
+    identity=checkpoint_manifest('prepared-'+data_run(),'prepared')['metadata']['identity']
+    missing=[]
+    for index in range(16):
+        m=checkpoint_manifest(f'cache-{data_run()}-{index:02}','cache',optional=True)
+        if m is None or not m['metadata'].get('complete'):missing.append(index);continue
+        meta=m['metadata']
+        if meta['identity']!=identity or meta['index']!=index or meta['count']!=16 or not m.get('files') or not m.get('parts'):raise ValueError('Completed checkpoint metadata differs')
+    return missing
+
 def data_run():
     value=os.environ.get('DATA_BUILD_ID',os.environ.get('GITHUB_RUN_ID',''))
     if not value.isdigit():raise ValueError('Data build ID must be numeric')
@@ -53,6 +73,10 @@ def save_logs(work):
 if __name__=='__main__':
     assert_private()
     if sys.argv[1]=='check':print('Private data repository and credential verified')
+    elif sys.argv[1]=='plan':
+        planned=json.dumps(cache_plan(),separators=(',',':'))
+        with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('shards='+planned+'\n')
+        print('Missing shader partitions: '+planned)
     elif sys.argv[1]=='input':download_input(sys.argv[2])
     elif sys.argv[1]=='publish':publish_template(sys.argv[2])
     elif sys.argv[1]=='logs':save_logs(sys.argv[2])

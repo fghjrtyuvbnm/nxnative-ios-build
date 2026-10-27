@@ -6,8 +6,26 @@ from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'scripts'))
 import pipeline
 import private_io
+import json
+from contracts import TITLE,BUILD,SOURCE
 
 class PrivateBoundary(unittest.TestCase):
+    def test_completed_checkpoint_is_planned_for_assembly_without_a_second_mac_restore(self):
+        class Result:
+            returncode=0
+            stdout=''
+            stderr=''
+        def call(*args,**kwargs):
+            r=Result()
+            if args[2]=='prepared-123':
+                r.stdout=json.dumps({'title_id':TITLE,'main_build':BUILD,'source':SOURCE,'kind':'prepared','metadata':{'identity':'expected'}})
+            elif args[2]=='cache-123-00':
+                r.stdout=json.dumps({'title_id':TITLE,'main_build':BUILD,'source':SOURCE,'kind':'cache','metadata':{'identity':'expected','index':0,'count':16,'complete':True},'files':[{}],'parts':[{}]})
+            else:r.returncode=1;r.stderr='release not found'
+            return r
+        with patch.dict(os.environ,{'DATA_BUILD_ID':'123'}),patch('private_io.gh',side_effect=call):
+            self.assertEqual(private_io.cache_plan(),list(range(1,16)))
+
     def test_public_runner_never_reads_release_from_public_code_repository(self):
         calls=[]
         class Result:

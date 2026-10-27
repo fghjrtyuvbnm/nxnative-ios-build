@@ -14,21 +14,27 @@ env:
 jobs:
   access:
     runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Verify private destination before starting Mac runners
         run: python3 scripts/private_io.py check
+      - name: Plan only missing private checkpoints
+        id: plan
+        run: python3 scripts/private_io.py plan
   shader:
     needs: access
+    if: needs.access.outputs.shards != '[]'
     runs-on: macos-26
     timeout-minutes: 115
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        index: ${{ fromJSON(needs.access.outputs.shards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -39,7 +45,8 @@ jobs:
           SHADER_INDEX: ${{ matrix.index }}
         run: python -u scripts/private_job.py shard "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game-$SHADER_INDEX" "$SHADER_INDEX"
   assemble:
-    needs: shader
+    needs: [access, shader]
+    if: always() && needs.access.result == 'success' && (needs.shader.result == 'success' || needs.shader.result == 'skipped')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
