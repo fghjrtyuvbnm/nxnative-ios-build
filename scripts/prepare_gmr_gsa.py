@@ -9,6 +9,10 @@ def prepare(source, dependency):
     path = dependency/'Sources/StosSign_Auth/Authentication.swift'; text = path.read_text()
     text = replace_once(text, 'let (data, response) = try await AppleAPI.shared.session.data(for: request)', 'let (data, response) = try await GMRGSAClient.send(request)')
     text = replace_once(text, 'stage: "Apple GSA " + operation', 'stage: GMRAuthenticationContext.stage(operation, clientInfo: anisetteData.deviceDescription)')
+    text = replace_once(text, '''httpHeaders.forEach { request.addValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        return request''', '''httpHeaders.forEach { request.addValue($0.value, forHTTPHeaderField: $0.key) }
+        return GMRGSAClient.identityRequest(request)''')
     original = '''return try await authenticate(
                 appleID: unsanitizedAppleID,
                 password: password,
@@ -42,6 +46,6 @@ def prepare(source, dependency):
     helper.write_text(helper_text)
     server = pathlib.Path(source)/'GetMoreRam/GMRServer.swift'
     server.write_text(server.read_text().replace('jkcoxson (Windows ADI)', 'jkcoxson (ani)'))
-    # Apply the GSA policy only to GsService2 SRP/token requests. Trusted-device,
-    # SMS and provider provisioning retain their independent endpoint policies.
-    return {'gsa_identity_separate_from_provisioning': True, 'gsa_provider_aware_identity_selection': True, 'gsa_session_per_request': True, 'automatic_authentication_retries': 0, 'gsa_application_headers_aligned': True, 'first_and_post_2fa_stage_labels': True}
+    # GSA and second-factor requests use the same provider-aware base identity;
+    # endpoint-specific plist/SMS formats and provisioning remain independent.
+    return {'gsa_identity_separate_from_provisioning': True, 'gsa_provider_aware_identity_selection': True, 'gsa_session_per_request': True, 'automatic_authentication_retries': 0, 'gsa_application_headers_aligned': True, 'first_and_post_2fa_stage_labels': True, 'twofactor_identity_aligned_with_gsa': True}

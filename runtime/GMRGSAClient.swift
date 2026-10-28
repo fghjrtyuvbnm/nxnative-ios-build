@@ -21,6 +21,8 @@ public enum GMRGSAClient {
 
     public static func identity(_ client: String?, agent: String?) -> GMRGSAIdentity {
         let value = (client ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if value == currentMac { return GMRGSAIdentity(name: "current-mac", client: currentMac, agent: currentMacAgent) }
+        if value == clientInfo { return GMRGSAIdentity(name: "windows-compatibility", client: clientInfo, agent: userAgent) }
         let stock = ["<MacBookPro13,2> <macOS;13.1;22C65>", "<MacBookPro15,1> <Mac OS X;10.15.2;19C57>"]
         if value.isEmpty || stock.contains(where: { value.hasPrefix($0) }) || value.contains("<Android;") {
             return GMRGSAIdentity(name: "windows-compatibility", client: clientInfo, agent: userAgent)
@@ -38,14 +40,19 @@ public enum GMRGSAClient {
         return GMRGSAIdentity(name: "provider-pair", client: value, agent: selectedAgent.isEmpty ? userAgent : selectedAgent)
     }
 
-    public static func prepare(_ input: URLRequest) -> URLRequest {
+    public static func identityRequest(_ input: URLRequest) -> URLRequest {
         var request = input
         let selected = identity(input.value(forHTTPHeaderField: "X-MMe-Client-Info"), agent: providerUserAgent)
         request.setValue(selected.client, forHTTPHeaderField: "X-MMe-Client-Info")
         request.setValue(selected.agent, forHTTPHeaderField: "User-Agent")
-        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Accept")
         request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")
         request.setValue("com.apple.gs.xcode.auth", forHTTPHeaderField: "X-Apple-App-Info")
+        return request
+    }
+
+    public static func prepare(_ input: URLRequest) -> URLRequest {
+        var request = identityRequest(input)
+        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Accept")
         request.setValue("close", forHTTPHeaderField: "Connection")
         return request
     }

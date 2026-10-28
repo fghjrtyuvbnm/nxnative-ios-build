@@ -72,6 +72,13 @@ static func main() async throws {
     let macPrepared = GMRGSAClient.prepare(macRequest)
     guard macPrepared.value(forHTTPHeaderField: "X-MMe-Client-Info") == GMRGSAClient.currentMac,
           macPrepared.value(forHTTPHeaderField: "User-Agent") == GMRGSAClient.currentMacAgent else { fatalError("Profile not applied at request boundary") }
+    macRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+    let secondFactor = GMRGSAClient.identityRequest(macRequest)
+    guard secondFactor.value(forHTTPHeaderField: "X-MMe-Client-Info") == macPrepared.value(forHTTPHeaderField: "X-MMe-Client-Info"),
+          secondFactor.value(forHTTPHeaderField: "User-Agent") == macPrepared.value(forHTTPHeaderField: "User-Agent"),
+          secondFactor.value(forHTTPHeaderField: "Accept") == "application/json" else { fatalError("Second-factor identity mismatch or format changed") }
+    guard GMRGSAClient.prepare(macPrepared).allHTTPHeaderFields == macPrepared.allHTTPHeaderFields else { fatalError("Identity policy is not idempotent") }
+    print("GSA and second-factor base identity parity passed; endpoint formats preserved")
     print("Stock/Android, legacy Mac and provider-pair identity selection fixtures passed")
     print("GSA application headers and isolated first/post-2FA round fixtures passed")
     print("GSA/provider identity separation, payload integrity and three-phase mock transport passed")
