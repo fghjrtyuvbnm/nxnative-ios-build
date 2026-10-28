@@ -52,8 +52,6 @@ The artifact gate inspects the actual ARM64 Mach-O deployment command, rejects c
 
 Run `40620629073` passed 98 standalone GPU checks, 1,066 NVN geometry checks and 63 presentation checks. Its 480-frame temporal test reported zero incorrect, black or stale frames, zero static-image hash mismatches and zero command errors. The explicit sRGB test first reproduced an unregistered-view failure in run `40618149491`; registering the exact view when serializing its GPU resource ID fixed that regression. Windows also passed 45 Python tests; both iOS 18 workflow files passed actionlint. These are synthetic renderer results, not a game-playability result.
 
-## Checks
-
 ## Optional packed shader directory
 
 The iOS 18 launcher with `DMShaderPackVersion=1` accepts both the original loose shader directory and a `pack-v1` directory. Use this updated launcher with the packed data; earlier launchers do not implement pack reads. Game code, the shader translation chain and shader inputs are unchanged.
@@ -65,6 +63,8 @@ Within `msl/b-<chain>/`, all JSON and metallib files become `shaders.pack` plus 
 The native reader keeps one descriptor per immutable pack and uses positional reads, so concurrent shader loads do not share a mutable seek offset. It allocates only the requested entry and verifies its content hash. Metal's dispatch data retains that entry until the driver releases it. Data are read directly from the selected directory, without unpacking to device storage. The external folder's authorization remains held for the game session. Do not modify or disconnect the selected pack during play.
 
 Packing reduces directory entries and filesystem allocation overhead; it is not content compression. Byte size can increase slightly because of the index. The original RomFS, including its UCAS file larger than 4 GB, remains intact. Physical drive speed and full gameplay still require device validation.
+
+The Windows export verified all 157,022 packed shader entries against the original SHA-256 records and copied other resources with hash verification. An additional 1,000 random reads across eight workers passed. The exported folder contains 19 files including its manifest, with the original full data preserved. The Python suite passed 51 tests. Run `40626052004` passed 15 native pack checks, including offsets beyond 2 GB, 100 concurrent reads, corruption/truncation rejection, loose-directory compatibility, backing-data lifetime and actual GPU computation using a packed library. The 98 standalone GPU, 1,066 geometry, 63 presentation and 480-frame temporal checks also passed without erroneous, black or stale frames. These results do not establish physical-drive performance or full-game compatibility on an iPad.
 
 ## Test commands
 
