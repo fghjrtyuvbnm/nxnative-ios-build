@@ -45,6 +45,13 @@ def apply(repo):
               'static MTL4FunctionDescriptor *pre_fn(id<MTLLibrary> lib, NSString *name) {\n    return nil; // The classic backend does not construct offline Metal 4 bases.')
     text=once(text,'static MTL4RenderPipelineDescriptor *pre_desc(NSString *vk, NSString *fk, int zero) {',
               'static MTL4RenderPipelineDescriptor *pre_desc(NSString *vk, NSString *fk, int zero) {\n    return nil; // Classic render pipelines are compiled through MTLDevice.')
+    text=once(text,'static void pso4_init(void) {','static void pso4_init(void) {\n    return; // Do not emit Metal-4 compiler/archive initialization blocks.')
+    text=once(text,'static MTL4RenderPipelineDescriptor *pso_desc4(MTLRenderPipelineDescriptor *d, int unspec) {',
+              'static MTL4RenderPipelineDescriptor *pso_desc4(MTLRenderPipelineDescriptor *d, int unspec) {\n    return nil; // The concrete classic descriptor is used directly.')
+    text=once(text,'static void gp_begin(id e, char kind, MTL4RenderPassDescriptor *d) {',
+              'static void gp_begin(id e, char kind, MTL4RenderPassDescriptor *d) {\n    return; // Per-encoder Metal-4 counter heaps are not a classic-backend feature.')
+    text=once(text,'static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTexture> raw, const NSUInteger r[4], MTLViewport vp, MTLPixelFormat out_pf, int remake_wait) {',
+              'static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTexture> raw, const NSUInteger r[4], MTLViewport vp, MTLPixelFormat out_pf, int remake_wait) {\n    return nil; // The classic variant retains its ordinary bilinear present.')
     text=once(text,'static int fx_mode(void) {','static int fx_mode(void) {\n    return 0; // Metal-4 MetalFX is unavailable; retain the normal bilinear present.')
     text=once(text,'static int gp_active(void) {','static int gp_active(void) {\n    if (getenv("DM_NVN_GPUPROF")) { static int warned; if (!warned++) MLOG("Per-encoder GPU timing requires Metal 4 and is unavailable on the classic backend"); }\n    return 0; // Never report synthetic Metal 4 counter-heap samples.')
     text=once(text,'if (g_present_layer_resident != layer) { [g_q4 addResidencySet:layer.residencySet]; g_present_layer_resident = layer; }',
