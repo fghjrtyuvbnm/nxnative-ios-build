@@ -1,0 +1,23 @@
+name: Build GetMoreRamExtended trusted-device response compatibility
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GMR_LOGIN_FIX: '1'
+  GMR_SERVER_FIX: '1'
+  GMR_TWOFACTOR_FIX: '1'
+jobs:
+  helper:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run offline protocol and lifecycle contracts, then build
+        run: python3 -u scripts/build_getmoreram.py "$RUNNER_TEMP/getmoreram"
+      - name: Retain verified unsigned helper privately
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+        run: python3 -u scripts/build_getmoreram.py publish "$RUNNER_TEMP/getmoreram"
