@@ -48,7 +48,7 @@ static void classic_temporal_test(void) {
             atomic_store(&g_origin_ll,phase==3&&(frame&1));int crop[4]={0};if(phase==2&&(frame&1)){crop[2]=8;crop[3]=16;}
             [pending[slot] beginCommandBufferWithAllocator:nil];
             [((DM18CommandBuffer*)pending[slot]).native encodeWaitForEvent:gate value:batch+1];
-            int kind=present_encode(pending[slot],sources[slot][srgb],targets[slot],crop,uvs[slot],NULL);
+            int kind=present_encode_m4(pending[slot],sources[slot][srgb],targets[slot],crop,uvs[slot],NULL);
             if(kind!=PRESENT_STANDARD)commandErrors++;
             id<MTL4ComputeCommandEncoder> bl=[pending[slot] computeCommandEncoder];
             [bl copyFromTexture:targets[slot] sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0) sourceSize:MTLSizeMake(32,32,1) toBuffer:readbacks[slot] destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:8192];

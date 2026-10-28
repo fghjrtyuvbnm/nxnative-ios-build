@@ -28,7 +28,7 @@ Run `python scripts/finish_windows.py <private-template-download> <local-build-d
 
 The IPA necessarily contains executable game code and host tables. It remains private. No signing or installation is performed. Physical external-drive behavior and full gameplay require later device validation; build and simulator success alone do not establish those.
 
-The engine currently targets iOS 26 or later. For a drive shared between Windows and iOS, use a Files-compatible filesystem such as exFAT. The actual UCAS resource is 5,976,850,224 bytes and cannot fit as one file on FAT32. Apple's supported external-storage formats and partition requirements are documented at https://support.apple.com/guide/iphone/external-storage-devices-iph95baac91f/26/ios/26 . This build does not format or modify any external drive.
+The original engine build targets iOS 26 or later. The separate iOS 18 variant below retains the same external-data contract. For a drive shared between Windows and iOS, use a Files-compatible filesystem such as exFAT. The actual UCAS resource is 5,976,850,224 bytes and cannot fit as one file on FAT32. Apple's supported external-storage formats and partition requirements are documented at https://support.apple.com/guide/iphone/external-storage-devices-iph95baac91f/26/ios/26 . This build does not format or modify any external drive.
 
 The iOS Simulator regression succeeded in run `40469728997`: the production picker opens, cancellation retains the launcher, and Play is disabled without valid data. Foundation lifecycle tests also passed. The earlier run `40468057809` established the stock behavioral RED and external-folder GREEN, but its optional final screenshot command failed afterward; it is not recorded as an overall successful workflow.
 
@@ -38,10 +38,22 @@ When the Windows upload is slow, `publish-verified.yml` can reuse the completed 
 
 This publication succeeded in run `40497295488`. GitHub's uploaded-asset digest matches the Windows verification report. The redundant slow Windows upload was stopped after confirming the private cloud asset.
 
+## iOS 18 / iPad mini 7 variant
+
+`ios18-build.yml` preserves the pinned renderer and its compute geometry path while adapting command encoding to classic Metal. The deployment target is iOS 18.0 and the CPU target is Apple A17. This is a separate unsigned launcher; it does not replace the previous iOS 26 IPA. The completed shader resources already target iOS 18 and are restored without translating shaders again. Existing external data retain their identity and need no new export.
+
+The variant uses standard bilinear presentation. Metal 4 pipeline archives, MetalFX presentation and optional per-encoder GPU profiling are unavailable and their unsupported launcher controls are removed. Native event timestamps remain available. Resource access is conservatively declared; device performance has not been measured.
+
+Before private packaging, synthetic GPU tests run under Metal validation on a standard macOS runner: buffer/address and texture/sampler bindings, current NVN geometry, crop and sRGB presentation, and a 480-frame temporal pixel regression. The temporal test uses three reusable command-buffer tokens and three in-flight slots, a CPU bilinear oracle, static-image hashes, changing pixels, crop/black bars, sRGB views and origin flips. It fails on incorrect, black or stale frames, static-image drift or command errors. Texture views must be registered when their opaque GPU resource IDs are serialized; registering only their parent allocation misses views created by the presentation cache.
+
+These checks exercise real GPU execution with synthetic inputs. They do not run the game's frame loop, its temporal effects or the iPad display compositor. They cannot establish that an unidentified third-party build's flicker has the same cause. Physical iPad mini 7 gameplay, frame pacing, memory pressure and external-drive disconnection remain unverified.
+
+The artifact gate inspects the actual ARM64 Mach-O deployment command, rejects code signatures and every Metal 4 import (including weak imports), and verifies the external-data metadata. Windows independently checks the downloaded binary imports, IPA CRC, private asset digest and existing data identity. Neither workflow signs or installs the application.
+
 ## Checks
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
-`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml`
+`actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml .github/workflows/ios18-build.yml .github/workflows/ios18-validation.yml`
 
 The private-destination regression first failed against the previous repository-relative transfer code, then passed after pinning the destination. The directory-scope regression likewise reproduced an original-granted-URL lifetime bug before its fix. Other new scaffold import errors are not claimed as behavioral RED evidence.
