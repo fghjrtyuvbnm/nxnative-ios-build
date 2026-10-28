@@ -97,7 +97,8 @@ def publish_ios18(work):
     if sha256(source)!=m['template_sha256']:raise ValueError('Final IPA changed after verification')
     with zipfile.ZipFile(source) as z:
         if z.testzip() or any(resource_name(name) is not None for name in z.namelist()):raise ValueError('Final launcher CRC or resource split failed')
-    ipa=out/'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-unsigned.ipa';source.rename(ipa)
+    filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-packed-unsigned.ipa' if m.get('shader_pack_version')==1 else 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-unsigned.ipa'
+    ipa=out/filename;source.rename(ipa)
     report={k:v for k,v in m.items() if k not in ('parts','resource_only')}
     report.update(launcher_sha256=m['template_sha256'],launcher_bytes=ipa.stat().st_size,zip_crc_verified=True,data_separate=True,physical_usb_runtime_tested=False,gameplay_tested=False)
     check=ipa.with_suffix('.verification.json');check.write_text(json.dumps(report,indent=2))

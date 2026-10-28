@@ -54,6 +54,20 @@ Run `40620629073` passed 98 standalone GPU checks, 1,066 NVN geometry checks and
 
 ## Checks
 
+## Optional packed shader directory
+
+The iOS 18 launcher with `DMShaderPackVersion=1` accepts both the original loose shader directory and a `pack-v1` directory. Use this updated launcher with the packed data; earlier launchers do not implement pack reads. Game code, the shader translation chain and shader inputs are unchanged.
+
+On Windows, run `python scripts/export_shader_pack.py <original-FFRS-Data> <new-packed-directory>`. The destination must not exist. The exporter leaves the original directory untouched, writes to a new staging directory, verifies every packed entry against the original file manifest, independently copies and verifies other resources, then renames the completed directory. An interrupted staging directory is retained for diagnosis and is never accepted as a completed export.
+
+Within `msl/b-<chain>/`, all JSON and metallib files become `shaders.pack` plus `shaders.index.json`; `inputs.tsv` stays loose. The uncompressed index records a version, total byte length and each filename's offset, length and SHA-256. Entries are contiguous in sorted filename order. Names, bounds, size limits and hashes are checked. Missing entries return no data; invalid packs fail instead of silently falling back to unrelated loose files.
+
+The native reader keeps one descriptor per immutable pack and uses positional reads, so concurrent shader loads do not share a mutable seek offset. It allocates only the requested entry and verifies its content hash. Metal's dispatch data retains that entry until the driver releases it. Data are read directly from the selected directory, without unpacking to device storage. The external folder's authorization remains held for the game session. Do not modify or disconnect the selected pack during play.
+
+Packing reduces directory entries and filesystem allocation overhead; it is not content compression. Byte size can increase slightly because of the index. The original RomFS, including its UCAS file larger than 4 GB, remains intact. Physical drive speed and full gameplay still require device validation.
+
+## Test commands
+
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
 `actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml .github/workflows/ios18-build.yml .github/workflows/ios18-validation.yml`

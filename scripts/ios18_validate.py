@@ -3,6 +3,9 @@ import os,pathlib,shutil,subprocess,sys
 repo=pathlib.Path(sys.argv[1]);kit=pathlib.Path(__file__).resolve().parents[1]
 from apply_ios18 import apply
 apply(repo)
+from apply_shader_pack import apply as apply_pack
+apply_pack(repo)
+subprocess.run([sys.executable,kit/'scripts/validate_shader_pack.py'],check=True)
 base=pathlib.Path(os.environ['RUNNER_TEMP'])/'ios18-validation';base.mkdir()
 binary=base/'gpu-check'
 subprocess.run(['xcrun','clang','-fobjc-arc','-O1','-w','-mmacosx-version-min=15.0','-I'+str(kit/'runtime'),str(kit/'runtime/ios18_gpu_test.m'),'-framework','Metal','-framework','Foundation','-framework','QuartzCore','-o',str(binary)],check=True)

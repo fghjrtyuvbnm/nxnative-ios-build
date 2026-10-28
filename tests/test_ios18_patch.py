@@ -2,6 +2,7 @@ import os,pathlib,subprocess,sys,tempfile,unittest
 from unittest.mock import patch
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'scripts'))
 import apply_ios18
+import apply_shader_pack
 from contracts import SOURCE
 
 class IOS18Patch(unittest.TestCase):
@@ -16,6 +17,7 @@ class IOS18Patch(unittest.TestCase):
                 p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
             with patch.object(apply_ios18.subprocess,'check_output',return_value=SOURCE):
                 apply_ios18.apply(root)
+                apply_shader_pack.apply(root)
                 # Simulate interruption between writing the backend and the project.
                 (root/'dm/ios/project.yml').write_bytes(payload['dm/ios/project.yml'])
                 apply_ios18.apply(root)
@@ -27,5 +29,6 @@ class IOS18Patch(unittest.TestCase):
                 self.assertIn('DM_NVN_ENC_THREAD\t',settings)
                 before=(root/'dm/gfx/nvn/nvn_mtl.m').read_bytes()
                 apply_ios18.apply(root)
+                apply_shader_pack.apply(root)
                 self.assertEqual(before,(root/'dm/gfx/nvn/nvn_mtl.m').read_bytes())
             for name in paths[2:4]:self.assertEqual(payload[name],(root/name).read_bytes())

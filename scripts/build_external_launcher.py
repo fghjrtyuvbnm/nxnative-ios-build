@@ -49,6 +49,8 @@ def main(repo,work,download,source_run):
     if ios18:
         from apply_ios18 import apply as apply_compatibility
         apply_compatibility(repo)
+        from apply_shader_pack import apply as apply_pack
+        apply_pack(repo)
     sys.path.insert(0,str(repo/'dm/games'));import game
     g=game.load(TITLE)
     spec=importlib.util.spec_from_file_location('nsp_build',repo/'scripts/build_ipa_from_nsp.py')
@@ -79,7 +81,7 @@ def main(repo,work,download,source_run):
     info=plistlib.loads(plist.read_bytes())
     info.update(DMExternalGameData=True,DMExternalDataVersion=1,DMExternalDataIdentity=identity,DMExternalRomFSMarker=g.get('romfs_marker'),
                 LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
-    if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',CFBundleVersion='1.0.2')
+    if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',DMShaderPackVersion=1,CFBundleVersion='1.0.3')
     plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned external-folder launcher; no shader recompilation')
     progress(work,'compiling-app')
@@ -102,7 +104,7 @@ def main(repo,work,download,source_run):
     report=dict(previous,external_data_runtime=True,resource_only=False,geometry_validation='passed',external_data_identity=identity,source_shader_run=int(source_run),
                 template_sha256=sha256(template),template_bytes=template.stat().st_size,parts=split_file(template,out,'template'),
                 romfs_packaging='Export as separate data folder on Windows',signed=False,runtime_tested=False)
-    if ios18:report.update(native_audit,data_resources_embedded=False,romfs_packaging='Reuse existing FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
+    if ios18:report.update(native_audit,data_resources_embedded=False,shader_pack_version=1,romfs_packaging='Use packed or original FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
     progress(work,'template-ready')
     b.PROG.close();print('External-folder launcher template ready; shaders reused unchanged.',flush=True)
