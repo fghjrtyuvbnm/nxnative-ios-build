@@ -50,6 +50,8 @@ These checks exercise real GPU execution with synthetic inputs. They do not run 
 
 The artifact gate inspects the actual ARM64 Mach-O deployment command, rejects code signatures and every Metal 4 import (including weak imports), and verifies the external-data metadata. Windows independently checks the downloaded binary imports, IPA CRC, private asset digest and existing data identity. Neither workflow signs or installs the application.
 
+Run `40620629073` passed 98 standalone GPU checks, 1,066 NVN geometry checks and 63 presentation checks. Its 480-frame temporal test reported zero incorrect, black or stale frames, zero static-image hash mismatches and zero command errors. The explicit sRGB test first reproduced an unregistered-view failure in run `40618149491`; registering the exact view when serializing its GPU resource ID fixed that regression. Windows also passed 45 Python tests; both iOS 18 workflow files passed actionlint. These are synthetic renderer results, not a game-playability result.
+
 ## Checks
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
