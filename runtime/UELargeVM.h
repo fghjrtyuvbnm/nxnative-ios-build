@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <errno.h>
+#include <stdio.h>
 #ifdef _WIN32
 #include <windows.h>
 static SRWLOCK ue_vm_lock=SRWLOCK_INIT;
@@ -38,7 +39,8 @@ static void *ue_vm_alloc(size_t size,size_t alignment){
     size_t page=ue_vm_page(),usable=ue_vm_round(size);if(alignment<page)alignment=page;
     if(!usable||usable>SIZE_MAX-alignment){errno=ENOMEM;return NULL;}
     size_t total=usable+alignment;uintptr_t base=0;
-    if(UE_VM_ALLOCATE(&base,total)!=0){errno=ENOMEM;return NULL;}
+    int backend_result=UE_VM_ALLOCATE(&base,total);
+    if(backend_result!=0){fprintf(stderr,"[ue-vm] allocate_failed requested_bytes=%zu usable_bytes=%zu mapping_bytes=%zu alignment=%zu page_bytes=%zu backend_result=%d\n",size,usable,total,alignment,page,backend_result);errno=ENOMEM;return NULL;}
     // One header page keeps ownership metadata out of the constrained malloc path.
     uintptr_t pointer=(base+page+alignment-1)&~(uintptr_t)(alignment-1);
     UEVirtualBlock *block=(UEVirtualBlock *)base;

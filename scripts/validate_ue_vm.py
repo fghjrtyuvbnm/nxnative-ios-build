@@ -1,6 +1,7 @@
 """Baseline failure under a limited backend, full candidate contract, native GPU sharing."""
 import os,pathlib,subprocess,sys
 kit=pathlib.Path(__file__).resolve().parents[1];repo=pathlib.Path(sys.argv[1]);root=pathlib.Path(os.environ['RUNNER_TEMP'])/'ue-vm-tests';root.mkdir()
+subprocess.run([sys.executable,kit/'scripts/validate_entitlement_diagnostics.py'],check=True)
 source=subprocess.check_output(['git','-C',repo,'show','cdc6cef6b0250fcb54a061e4c55d56382b5d18ad:dm/host/hle_uemalloc.c'],text=True)
 original=source[source.index('static size_t align_of'):source.index('static void *m_Malloc')]
 for label,core in (('original',original),('candidate',(kit/'runtime/UEAllocatorCore.inc').read_text())):

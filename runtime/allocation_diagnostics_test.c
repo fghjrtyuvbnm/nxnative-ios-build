@@ -16,7 +16,7 @@ int main(void){
     ue_allocation_failure("owned-fixture",owned,6*1024*1024+123,1,ENOMEM);
     for(int i=0;i<1024;i++)assert(((unsigned char *)owned)[i]==0x5a);
     ue_allocation_failure("foreign-fixture",foreign,8*1024*1024+321,0,ENOMEM);
-    ue_allocation_failure("bounded-fixture",NULL,17*1024*1024,0,ENOMEM);
+    ue_allocation_failure("bounded-fixture",NULL,65*1024*1024,0,ENOMEM);
     malloc_zone_free(g_zone,owned);free(foreign);malloc_destroy_zone(g_zone);
     puts("allocation diagnostic observation fixtures passed");return 0;
 }

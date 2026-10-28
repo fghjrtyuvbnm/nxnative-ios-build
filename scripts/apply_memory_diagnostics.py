@@ -5,6 +5,7 @@ def apply(repo):
     for folder in ('dm/host','dm/ios/Sources','dm/gfx/nvn'):
         shutil.copyfile(runtime/'MemoryDiagnostics.h',repo/folder/'MemoryDiagnostics.h')
     shutil.copyfile(runtime/'UEAllocationDiagnostics.inc',repo/'dm/host/UEAllocationDiagnostics.inc')
+    shutil.copyfile(runtime/'EntitlementDiagnostics.h',repo/'dm/ios/Sources/EntitlementDiagnostics.h')
     p=repo/'dm/host/hle_uemalloc.c';s=p.read_text()
     if '#include "MemoryDiagnostics.h"' not in s:
         s=s.replace('#include "hle.h"','#include "hle.h"\n#include "MemoryDiagnostics.h"',1)
@@ -31,4 +32,9 @@ def apply(repo):
         old='    if (uses_external_data()) dm_host_preload_start(g_argc, g_argv);'
         if s.count(old)!=1:raise ValueError('External play anchor changed')
         s=s.replace(old,'    dm_memory_note("play-before-preload");\n'+old,1)
+        p.write_text(s,encoding='utf-8',newline='\n')
+    s=p.read_text()
+    if '#include "EntitlementDiagnostics.h"' not in s:
+        s=s.replace('#include "MemoryDiagnostics.h"','#include "MemoryDiagnostics.h"\n#include "EntitlementDiagnostics.h"',1)
+        s=s.replace('dm_memory_note("app-boot");','dm_memory_note("app-boot"); dm_signing_memory_note();',1)
         p.write_text(s,encoding='utf-8',newline='\n')
