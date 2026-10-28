@@ -15,13 +15,13 @@ func headers(_ anisetteData: Fixture) -> [String: String] {
 return httpHeaders
 }
 let value = headers(Fixture(deviceDescription: "synthetic-Mac-provider-identity"))
-// The required Windows policy fails under the exact prior header expression.
-if value["X-MMe-Client-Info"]?.contains("Windows") != true { exit(42) }
+// The upstream application-header contract fails under the prior expression.
+if value["X-Apple-App-Info"] != "com.apple.gs.xcode.auth" || value["X-Xcode-Version"] != "14.2 (14C18)" { exit(42) }
 exit(0)
 ''')
     baseline = out/'gsa-legacy'
     subprocess.run(['swiftc', str(old), '-o', str(baseline)], check=True)
-    if subprocess.run([str(baseline)]).returncode != 42: raise ValueError('Original policy mismatch not reproduced')
+    if subprocess.run([str(baseline)]).returncode != 42: raise ValueError('Original application-header mismatch not reproduced')
     binary = out/'gsa-contract'
     helper = dependency/'Sources/StosSign_Common/GMRGSAClient.swift'
     subprocess.run(['swiftc', '-parse-as-library', str(helper), str(kit/'tests/gmr_gsa_contract.swift'), '-o', str(binary)], check=True)
@@ -29,4 +29,4 @@ exit(0)
     text = helper.read_text()
     if 'let session = URLSession(configuration: configuration)' not in text or 'defer { session.finishTasksAndInvalidate() }' not in text:
         raise ValueError('Per-request session lifecycle changed')
-    print('Original provider-derived GSA identity mismatch reproduced; independent session lifecycle checked', flush=True)
+    print('Original GSA application-header mismatch reproduced; independent session lifecycle checked', flush=True)

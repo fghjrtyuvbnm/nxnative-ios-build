@@ -20,7 +20,8 @@ static func main() async throws {
     original.httpMethod = "POST"
     original.httpBody = Data("synthetic-srp-body".utf8)
     // Reproduce the old server-metadata + fixed-agent mismatch without accounts.
-    original.setValue("synthetic-Mac-provider-identity", forHTTPHeaderField: "X-MMe-Client-Info")
+    let stock = "<MacBookPro13,2> <macOS;13.1;22C65> <com.apple.AuthKit/1 (com.apple.dt.Xcode/fixture)>"
+    original.setValue(stock, forHTTPHeaderField: "X-MMe-Client-Info")
     original.setValue("SYNTHETIC_OTP", forHTTPHeaderField: "X-Apple-I-MD")
     let prepared = GMRGSAClient.prepare(original)
     guard prepared.value(forHTTPHeaderField: "X-MMe-Client-Info") == GMRGSAClient.clientInfo,
@@ -30,7 +31,7 @@ static func main() async throws {
           prepared.value(forHTTPHeaderField: "X-Apple-App-Info") == "com.apple.gs.xcode.auth",
           prepared.httpBody == original.httpBody,
           prepared.value(forHTTPHeaderField: "X-Apple-I-MD") == "SYNTHETIC_OTP",
-          original.value(forHTTPHeaderField: "X-MMe-Client-Info") == "synthetic-Mac-provider-identity" else {
+          original.value(forHTTPHeaderField: "X-MMe-Client-Info") == stock else {
         fatalError("GSA policy modified provider data or SRP payload")
     }
     let configuration = URLSessionConfiguration.ephemeral
@@ -61,6 +62,17 @@ static func main() async throws {
         return true
     }
     guard isolated else { fatalError("Concurrent authentication round state leaked") }
+    let oldMac = GMRGSAClient.identity("<Fixture> <macOS;10.12.6;fixture> <com.apple.AuthKit/1 (com.apple.akd/1.0)>", agent: "old-agent")
+    guard oldMac.name == "current-mac", oldMac.client == GMRGSAClient.currentMac, oldMac.agent == GMRGSAClient.currentMacAgent else { fatalError("Legacy Mac backend incorrectly treated as Windows") }
+    let supplied = GMRGSAClient.identity("<Fixture> <macOS;26.6;fixture>", agent: "provider-agent")
+    guard supplied.name == "provider-pair", supplied.agent == "provider-agent" else { fatalError("Provider pair lost") }
+    guard GMRGSAClient.identity("<Fixture> <Android;14;fixture>", agent: "android-agent").name == "windows-compatibility" else { fatalError("Android fallback regression") }
+    var macRequest = original
+    macRequest.setValue("<Fixture> <macOS;10.12.6;fixture>", forHTTPHeaderField: "X-MMe-Client-Info")
+    let macPrepared = GMRGSAClient.prepare(macRequest)
+    guard macPrepared.value(forHTTPHeaderField: "X-MMe-Client-Info") == GMRGSAClient.currentMac,
+          macPrepared.value(forHTTPHeaderField: "User-Agent") == GMRGSAClient.currentMacAgent else { fatalError("Profile not applied at request boundary") }
+    print("Stock/Android, legacy Mac and provider-pair identity selection fixtures passed")
     print("GSA application headers and isolated first/post-2FA round fixtures passed")
     print("GSA/provider identity separation, payload integrity and three-phase mock transport passed")
 }}
