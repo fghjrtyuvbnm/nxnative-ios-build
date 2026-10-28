@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdio.h>
+#include "MemoryDiagnostics.h"
 
 static NSError *dm_pack_error(NSString *message) { return [NSError errorWithDomain:@"org.nxnative.shader-pack" code:1 userInfo:@{NSLocalizedDescriptionKey:message}]; }
 @interface DMShaderPack : NSObject {
@@ -22,6 +23,7 @@ static NSError *dm_pack_error(NSString *message) { return [NSError errorWithDoma
 - (instancetype)initWithDirectory:(NSString *)directory {
     if (!(self=[super init]))return nil;
     _fd=-1;
+    dm_memory_note("shader-pack-index-begin");
     NSString *indexPath=[directory stringByAppendingPathComponent:@"shaders.index.json"];
     NSDictionary *attrs=[NSFileManager.defaultManager attributesOfItemAtPath:indexPath error:nil];
     unsigned long long indexSize=[attrs[NSFileSize] unsignedLongLongValue];
@@ -48,6 +50,7 @@ static NSError *dm_pack_error(NSString *message) { return [NSError errorWithDoma
     _fd=open([[directory stringByAppendingPathComponent:@"shaders.pack"] fileSystemRepresentation],O_RDONLY|O_NOFOLLOW);
     struct stat st;
     if (_fd<0 || fstat(_fd,&st) || !S_ISREG(st.st_mode) || st.st_size<0 || (uint64_t)st.st_size!=offset)return [self invalid];
+    dm_memory_note("shader-pack-index-ready");
     return self;
 }
 - (instancetype)invalid {
