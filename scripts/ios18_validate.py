@@ -21,6 +21,12 @@ if 'CLASSIC_SRGB_REGRESSION' not in text:
     if text.count(anchor)!=1:raise ValueError('Presentation regression insertion point changed')
     text=text.replace(anchor,(kit/'runtime/ios18_srgb_present.inc').read_text()+'\n'+anchor,1)
     present_test.write_text(text)
+if 'CLASSIC_TEMPORAL_REGRESSION' not in text:
+    if text.count('int main(')!=1:raise ValueError('Presentation main insertion point changed')
+    text=text.replace('int main(',(kit/'runtime/ios18_temporal_present.inc').read_text()+'\nint main(',1)
+    anchor='    if([MTLFXSpatialScalerDescriptor supportsMetal4FX:g_dev]) {'
+    text=text.replace(anchor,'    classic_temporal_test();\n'+anchor,1)
+    present_test.write_text(text)
 subprocess.run(['make','-C',str(tests),'GAME=0100B8A026F14000','t_present_crop'],check=True,stdout=subprocess.DEVNULL)
 subprocess.run([str(tests/'t_present_crop')],env=dict(os.environ,MTL_DEBUG_LAYER='1'),check=True,timeout=120)
 print('Current NVN presentation pixel tests passed through classic Metal',flush=True)

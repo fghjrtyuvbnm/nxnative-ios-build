@@ -1,5 +1,5 @@
 """Adapt only host execution APIs; keep the completed iOS-18 shader ABI intact."""
-import pathlib,shutil,subprocess,sys
+import pathlib,re,shutil,subprocess,sys
 from contracts import SOURCE
 
 def once(text,old,new):
@@ -57,6 +57,10 @@ def apply(repo):
     text=once(text,'if (g_present_layer_resident != layer) { [g_q4 addResidencySet:layer.residencySet]; g_present_layer_resident = layer; }',
               '/* CAMetalLayer residency sets require iOS 26; classic drawable ownership is automatic. */')
     text=text.replace('[dr presentAfterMinimumDuration:period];','(void)period;').replace('[dr present];','(void)dr;')
+    text=text.replace('dummy_samp().gpuResourceID','dm18_id(g_dev, dummy_samp())')
+    text=text.replace('samp[!!linear && !depth].gpuResourceID','dm18_id(g_dev, samp[!!linear && !depth])')
+    text=re.sub(r'\b(v|t|s|c|use|sv|stv|tex|g_blit_samp)\.gpuResourceID\b',lambda m:'dm18_id(g_dev, '+m[1]+')',text)
+    if '.gpuResourceID' in text:raise ValueError('Review a new GPU resource-ID serialization site')
     text=once(text,'return (__bridge void *)g_dev;','return (__bridge void *)dm18_native(g_dev);')
     source.write_text(text,encoding='utf-8',newline='\n')
 

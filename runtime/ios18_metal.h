@@ -299,6 +299,9 @@ static MTLResourceOptions dm18_tracked(MTLResourceOptions o) { return (o&~(MTLRe
 static id<MTLDevice> dm18_device(void) { id<MTLDevice> native=MTLCreateSystemDefaultDevice();if (!native)return nil;DM18Device *d=[DM18Device new];d.native=native;d.queue=[native newCommandQueue];d.registry=[DM18Registry new];return d; }
 static id<MTLDevice> dm18_native(id<MTLDevice> d) { return [(id)d isKindOfClass:DM18Device.class] ? ((DM18Device *)d).native : d; }
 static void dm18_register(id<MTLDevice> d,id resource) { if ([(id)d isKindOfClass:DM18Device.class]) [((DM18Device *)d).registry add:resource]; }
+// Views can share their parent's allocation without going through res_add.
+// Register the exact object whenever a replay serializes its opaque GPU ID.
+static MTLResourceID dm18_id(id<MTLDevice> d,id object) { dm18_register(d,object); return object ? [(id<MTLTexture>)object gpuResourceID] : (MTLResourceID){0}; }
 
 #define MTL4ArgumentTable DM18Arguments
 #define MTL4ArgumentTableDescriptor DM18ArgumentTableDescriptor
