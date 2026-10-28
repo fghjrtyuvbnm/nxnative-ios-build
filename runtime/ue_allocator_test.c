@@ -22,7 +22,8 @@ static pthread_mutex_t zone_lock=PTHREAD_MUTEX_INITIALIZER;
 #endif
 typedef struct Record{void *pointer;size_t size;struct Record *next;} Record;
 static Record *records;
-static _Atomic int deny_large_zone=1,deny_vm=0;
+static _Atomic int deny_large_zone=1,deny_vm=0,deny_vm_release=0;
+static _Atomic int64_t live_vm_bytes=0;
 static _Atomic int64_t balance=0;
 static void *g_zone=(void *)1;
 static void used(int64_t n){atomic_fetch_add(&balance,n);}
@@ -58,17 +59,19 @@ static void *zone_realloc(void *pointer,size_t size){size_t old=test_size(pointe
 static int backend_allocate(uintptr_t *address,size_t size){
     if(atomic_load(&deny_vm))return -1;
 #ifdef _WIN32
-    *address=(uintptr_t)VirtualAlloc(NULL,size,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);return *address?0:-1;
+    *address=(uintptr_t)VirtualAlloc(NULL,size,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);if(*address)atomic_fetch_add(&live_vm_bytes,size);return *address?0:-1;
 #else
-    vm_address_t result=0;int status=vm_allocate(mach_task_self(),&result,size,VM_FLAGS_ANYWHERE);*address=result;return status;
+    vm_address_t result=0;int status=vm_allocate(mach_task_self(),&result,size,VM_FLAGS_ANYWHERE);*address=result;if(!status)atomic_fetch_add(&live_vm_bytes,size);return status;
 #endif
 }
 static int backend_release(uintptr_t address,size_t size){
+    if(atomic_load(&deny_vm_release))return -1;
 #ifdef _WIN32
-    (void)size;return VirtualFree((void *)address,0,MEM_RELEASE)?0:-1;
+    int status=VirtualFree((void *)address,0,MEM_RELEASE)?0:-1;
 #else
-    return vm_deallocate(mach_task_self(),address,size);
+    int status=vm_deallocate(mach_task_self(),address,size);
 #endif
+    if(!status)atomic_fetch_sub(&live_vm_bytes,size);return status;
 }
 #define UE_VM_ALLOCATE(address,size) backend_allocate(address,size)
 #define UE_VM_RELEASE(address,size) backend_release(address,size)
@@ -99,12 +102,21 @@ int main(void){
     uintptr_t probe=0;REQUIRE(backend_allocate(&probe,2*1024*1024)==0);REQUIRE(backend_release(probe,2*1024*1024)==0);
     void *large=alloc(2*1024*1024+137,65536);
     REQUIRE(large!=NULL); // RED on the original malloc-only policy under a limited backend.
-    REQUIRE(((uintptr_t)large%65536)==0&&allocation_size(large)>=2*1024*1024+137);release(large);
+    REQUIRE(((uintptr_t)large%65536)==0&&allocation_size(large)>=2*1024*1024+137);
+    memset(large,0x81,2*1024*1024+137);size_t old_size=allocation_size(large);atomic_store(&deny_vm,1);
+    REQUIRE(realloc_aligned(large,3*1024*1024,65536)==NULL&&allocation_size(large)==old_size);
+    for(int i=0;i<2*1024*1024+137;i++)REQUIRE(((unsigned char*)large)[i]==0x81);
+    atomic_store(&deny_vm,0);release(large);
     unsigned char*p=alloc(4096,0);REQUIRE(p);memset(p,0x53,4096);
     atomic_store(&deny_vm,1);REQUIRE(realloc_aligned(p,2*1024*1024,0)==NULL);for(int i=0;i<4096;i++)REQUIRE(p[i]==0x53);
     atomic_store(&deny_vm,0);unsigned char*q=realloc_aligned(p,2*1024*1024,0);REQUIRE(q);for(int i=0;i<4096;i++)REQUIRE(q[i]==0x53);release(q);
 #ifdef UE_LARGE_VM_V1
     REQUIRE(ue_vm_alloc(SIZE_MAX,16)==NULL);REQUIRE(ue_vm_alloc(2*1024*1024,24)==NULL);
+    void *retained=ue_vm_alloc(1024*1024,16);REQUIRE(retained);size_t released=0;atomic_store(&deny_vm_release,1);
+    REQUIRE(ue_vm_free(retained,&released)==-1&&ue_vm_size(retained)>=1024*1024);
+    atomic_store(&deny_vm_release,0);REQUIRE(ue_vm_free(retained,&released)==1&&ue_vm_size(retained)==0);
+    const uint32_t alignments[]={0,1,16,4096,65536,1024*1024};
+    for(int j=0;j<6;j++)for(int d=-1;d<=1;d++){size_t n=(size_t)((int)UE_VM_THRESHOLD+d);void *x=alloc(n,alignments[j]);REQUIRE(x&&((uintptr_t)x%align_of(alignments[j]))==0&&allocation_size(x)>=n);release(x);}
 #endif
 #ifdef _WIN32
     HANDLE threads[4];for(int i=0;i<4;i++)threads[i]=CreateThread(NULL,0,worker,(void *)(uintptr_t)(i+1),0,NULL);
@@ -112,6 +124,9 @@ int main(void){
 #else
     pthread_t threads[4];for(int i=0;i<4;i++)REQUIRE(pthread_create(&threads[i],NULL,worker,(void *)(uintptr_t)(i+1))==0);for(int i=0;i<4;i++)pthread_join(threads[i],NULL);
 #endif
-    REQUIRE(atomic_load(&balance)==0&&records==NULL);
+    REQUIRE(atomic_load(&balance)==0&&records==NULL&&atomic_load(&live_vm_bytes)==0);
+#ifdef UE_LARGE_VM_V1
+    for(int i=0;i<4096;i++)REQUIRE(ue_vm_blocks[i]==NULL);
+#endif
     puts("UE allocator contract passed: limited malloc backend, VM commitment, alignment, migration, failed-growth retention, concurrent lifetime and zero balance");return 0;
 }

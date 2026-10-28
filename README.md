@@ -76,6 +76,16 @@ The `ios18-allocation-diagnostic-unsigned.ipa` (bundle version 1.0.5) adds failu
 
 ## Test commands
 
+## Candidate large-allocation VM policy
+
+The iOS 18 candidate with `DMLargeUEVM=true` (bundle version 1.0.6) routes Unreal allocations of at least 1 MiB directly through native virtual memory, while keeping smaller allocations in the existing malloc zone. This is an initial routing policy, not a retry after malloc fails. VM ownership records live inside their own mappings and use a static hash table, so registering a large block does not itself require another malloc. Each block keeps a header page and supplies page-aligned storage with any larger requested power-of-two alignment.
+
+The same allocator handles free, usable-size queries, quantization and realloc migrations between small and large storage. Failed growth retains the original allocation. Kernel deallocation failure retains the ownership record and remains fatal instead of silently losing a mapping. This policy does not raise physical-memory limits, grant signing capabilities or guarantee that all VM allocations succeed. The precise internal trigger for any platform malloc failure remains outside the candidate's verification; physical-device gameplay is still required.
+
+`python scripts/test_ue_allocator.py <pinned-source-checkout>` must reproduce the original policy's behavioral failure under a synthetic backend that denies large malloc requests while allowing VM allocation. Add `--candidate` to run the candidate contract. The fixture touches the mapped memory, checks alignment and threshold boundaries, both realloc migrations, failed-growth preservation, failed-deallocation record retention, concurrent lifetimes and zero outstanding payload/mapping balance. This is backend-limit characterization, not a reproduction of iOS's internal address layout. Native CI additionally shares a VM allocation with a real Metal buffer and checks GPU-written values before releasing the mapping. Game data, rewritten modules and shader translation inputs remain unchanged.
+
+## Running checks
+
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
 `actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml .github/workflows/ios18-build.yml .github/workflows/ios18-validation.yml`
