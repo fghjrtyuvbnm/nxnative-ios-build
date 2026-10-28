@@ -10,5 +10,8 @@ subprocess.run([str(binary)],env=dict(os.environ,MTL_DEBUG_LAYER='1'),check=True
 print('Standalone classic Metal GPU checks passed',flush=True)
 tests=repo/'dm/gfx/tests'
 subprocess.run(['make','-C',str(tests),'GAME=0100B8A026F14000','t_geometry'],check=True,stdout=subprocess.DEVNULL)
+from ios18_artifact import check_imports
+check_imports(subprocess.check_output(['xcrun','nm','-m',tests/'t_geometry'],text=True))
+print('Current NVN classic executable has no Metal 4 imports',flush=True)
 subprocess.run([str(tests/'t_geometry')],env=dict(os.environ,MTL_DEBUG_LAYER='1',DM_TEST_NO_METAL4='1'),check=True,timeout=180)
 print('Current NVN geometry GPU tests passed through classic Metal',flush=True)

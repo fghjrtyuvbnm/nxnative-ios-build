@@ -1,6 +1,11 @@
 """Validate the real device executable's deployment target, independently of Info.plist."""
 import pathlib,plistlib,struct,subprocess
 
+def check_imports(imports):
+    unavailable=[line for line in imports.splitlines() if '(undefined)' in line and 'MTL4' in line]
+    if unavailable:raise ValueError('Classic executable still imports Metal 4 objects')
+    return {'strong_metal4_imports':0,'weak_metal4_imports':0}
+
 def check_macho(binary):
     if len(binary)<32:raise ValueError('Truncated executable')
     magic,cpu,subtype,filetype,ncmds,size,flags,reserved=struct.unpack_from('<8I',binary)
@@ -24,8 +29,5 @@ def audit_app(app):
     if info.get('MinimumOSVersion')!='18.0' or info.get('DMExternalGameData') is not True:raise ValueError('Wrong app deployment or data mode')
     binary=app/info['CFBundleExecutable'];result=check_macho(binary.read_bytes())
     imports=subprocess.check_output(['xcrun','nm','-m',binary],text=True)
-    unavailable=[line for line in imports.splitlines() if '(undefined)' in line and 'MTL4' in line and 'weak' not in line.lower()]
-    if unavailable:raise ValueError('Executable strongly imports unavailable Metal 4 objects')
-    result['strong_metal4_imports']=0
-    result['weak_metal4_imports']=sum('(undefined)' in line and 'MTL4' in line for line in imports.splitlines())
+    result.update(check_imports(imports))
     return result

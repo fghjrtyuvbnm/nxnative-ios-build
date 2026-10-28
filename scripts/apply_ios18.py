@@ -30,6 +30,17 @@ def apply(repo):
               '/* Classic Metal performs no Metal-4 family check. */')
     text=once(text,'    [g_q addResidencySet:g_res];','    /* Explicit classic-encoder resource declarations replace queue residency. */')
     text=once(text,'static int pso4_on(void) {','static int pso4_on(void) {\n    return 0; // Classic render pipelines use MTLDevice, with their concrete formats.')
+    text=once(text,'static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString *name, MTLFunctionConstantValues *cv) {',
+              '''static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString *name, MTLFunctionConstantValues *cv) {
+    // Keep function identity alive as before, without constructing Metal 4 descriptors.
+    if (!f || !lib || !name) return f;
+    static NSHashTable *classic_functions;
+    os_unfair_lock_lock(&g_fn4_lock);
+    if (!classic_functions) classic_functions=[[NSHashTable alloc] initWithOptions:NSPointerFunctionsStrongMemory|NSPointerFunctionsObjectPointerPersonality capacity:0];
+    [classic_functions addObject:f];
+    os_unfair_lock_unlock(&g_fn4_lock);
+    return f;
+''')
     text=once(text,'static int fx_mode(void) {','static int fx_mode(void) {\n    return 0; // Metal-4 MetalFX is unavailable; retain the normal bilinear present.')
     text=once(text,'static int gp_active(void) {','static int gp_active(void) {\n    if (getenv("DM_NVN_GPUPROF")) { static int warned; if (!warned++) MLOG("Per-encoder GPU timing requires Metal 4 and is unavailable on the classic backend"); }\n    return 0; // Never report synthetic Metal 4 counter-heap samples.')
     text=once(text,'if (g_present_layer_resident != layer) { [g_q4 addResidencySet:layer.residencySet]; g_present_layer_resident = layer; }',

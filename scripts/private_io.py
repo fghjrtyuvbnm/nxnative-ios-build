@@ -92,7 +92,7 @@ def publish_ios18(work):
     from external_pack import resource_name
     import zipfile
     assert_private();out=pathlib.Path(work)/'output';m=json.loads((out/'result-manifest.json').read_text())
-    if m.get('minimum_ios')!='18.0' or m.get('strong_metal4_imports')!=0 or m.get('data_resources_embedded') is not False:raise ValueError('iOS 18 native validation is incomplete')
+    if m.get('minimum_ios')!='18.0' or m.get('strong_metal4_imports')!=0 or m.get('weak_metal4_imports')!=0 or m.get('data_resources_embedded') is not False:raise ValueError('iOS 18 native validation is incomplete')
     source=out/'FFR-external-template.ipa'
     if sha256(source)!=m['template_sha256']:raise ValueError('Final IPA changed after verification')
     with zipfile.ZipFile(source) as z:
