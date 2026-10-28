@@ -87,6 +87,24 @@ def publish_resources(work):
     gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Compiled resources checkpoint (not an application)','--notes','Private resources and real upstream shader tables; reuse for launcher-only builds.','--prerelease')
     gh('release','upload',tag,'--repo',DATA_REPOSITORY,*sorted(out.glob('template.part*')),out/'result-manifest.json',out/'geometry-descriptors.json')
 
+def publish_ios18(work):
+    from contracts import sha256
+    from external_pack import resource_name
+    import zipfile
+    assert_private();out=pathlib.Path(work)/'output';m=json.loads((out/'result-manifest.json').read_text())
+    if m.get('minimum_ios')!='18.0' or m.get('strong_metal4_imports')!=0 or m.get('data_resources_embedded') is not False:raise ValueError('iOS 18 native validation is incomplete')
+    source=out/'FFR-external-template.ipa'
+    if sha256(source)!=m['template_sha256']:raise ValueError('Final IPA changed after verification')
+    with zipfile.ZipFile(source) as z:
+        if z.testzip() or any(resource_name(name) is not None for name in z.namelist()):raise ValueError('Final launcher CRC or resource split failed')
+    ipa=out/'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-unsigned.ipa';source.rename(ipa)
+    report={k:v for k,v in m.items() if k not in ('parts','resource_only')}
+    report.update(launcher_sha256=m['template_sha256'],launcher_bytes=ipa.stat().st_size,zip_crc_verified=True,data_separate=True,physical_usb_runtime_tested=False,gameplay_tested=False)
+    check=ipa.with_suffix('.verification.json');check.write_text(json.dumps(report,indent=2))
+    tag='ios18-launcher-'+os.environ['GITHUB_RUN_ID']
+    gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Unsigned iOS 18 launcher for iPad mini 7','--notes','Private iOS 18 ARM64 Metal 3 launcher. Reuses the original complete external FFRS-Data directory. Device gameplay and physical USB access remain unverified.','--prerelease')
+    gh('release','upload',tag,'--repo',DATA_REPOSITORY,ipa,check)
+
 def download_resources(work,source_run):
     if not str(source_run).isdigit():raise ValueError('Resource run must be numeric')
     dest=pathlib.Path(work)/'resource-download';dest.mkdir()

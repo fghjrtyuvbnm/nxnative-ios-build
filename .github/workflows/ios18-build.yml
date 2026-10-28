@@ -1,0 +1,24 @@
+name: Build private iOS 18 external-folder launcher
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  DATA_BUILD_ID: '40459496301'
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Verify classic GPU execution before packaging
+        run: python -u scripts/ios18_validate.py "$RUNNER_TEMP/nxnative"
+      - name: Compile only the private iOS 18 A17 launcher
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          TARGET_IOS: '18.0'
+        run: python -u scripts/private_job.py launcher18 "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game" 40482789385

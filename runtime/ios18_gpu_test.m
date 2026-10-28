@@ -4,6 +4,13 @@
 #include <stdio.h>
 static unsigned checks;
 #define CHECK(x) do { checks++; if (!(x)) { fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); abort(); } } while(0)
+@interface SyntheticBufferRange : NSObject <MTLBuffer>
+@property uint64_t gpuAddress;
+@property NSUInteger length;
+@end
+@implementation SyntheticBufferRange
+- (MTLStorageMode)storageMode { return MTLStorageModeShared; }
+@end
 static void finish(id<DM18CommandQueue> q,id<DM18CommandBuffer> cb,id<MTLSharedEvent> event,uint64_t value) {
     [cb endCommandBuffer];[q commit:&cb count:1];[q signalEvent:event value:value];
     NSDate *end=[NSDate dateWithTimeIntervalSinceNow:30];
@@ -20,7 +27,8 @@ int main(void) { @autoreleasepool {
     NSString *source=@"#include <metal_stdlib>\nusing namespace metal;\n"
     "kernel void fill(device uint *o[[buffer(0)]],constant uint& v[[buffer(1)]],uint i[[thread_position_in_grid]]){if(i<32)o[i]=v+i;}\n"
     "vertex float4 vs(uint i[[vertex_id]]){const float2 p[3]={float2(-1,-1),float2(3,-1),float2(-1,3)};return float4(p[i],0,1);}\n"
-    "fragment float4 fs(constant float4& c[[buffer(0)]]){return c;}\n";
+    "fragment float4 fs(constant float4& c[[buffer(0)]]){return c;}\n"
+    "fragment float4 sampled(texture2d<float> t[[texture(0)]],sampler s[[sampler(0)]]){return t.sample(s,float2(.5));}\n";
     MTLCompileOptions *options=[MTLCompileOptions new];options.languageVersion=MTLLanguageVersion3_1;
     id<MTLLibrary> lib=[d newLibraryWithSource:source options:options error:&error];CHECK(lib!=nil);
     id<MTLComputePipelineState> cp=[d newComputePipelineStateWithFunction:[lib newFunctionWithName:@"fill"] error:&error];CHECK(cp!=nil);
@@ -55,7 +63,24 @@ int main(void) { @autoreleasepool {
     ce=[cb computeCommandEncoder];[ce copyFromTexture:texture sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0) sourceSize:MTLSizeMake(16,16,1) toBuffer:pixels destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:4096];[ce endEncoding];
     finish(q,cb,event,2);
     uint8_t *pixel=(uint8_t *)pixels.contents+8*256+8*4;CHECK(pixel[0]==255);CHECK(pixel[1]==0);CHECK(pixel[2]==0);CHECK(pixel[3]==255);
+    // Reuse the command-buffer token and bind a texture/sampler by resource ID.
+    pd.fragmentFunction=[lib newFunctionWithName:@"sampled"];
+    id<MTLRenderPipelineState> samplePSO=[d newRenderPipelineStateWithDescriptor:pd error:&error];CHECK(samplePSO!=nil);
+    MTLSamplerDescriptor *sd=[MTLSamplerDescriptor new];sd.supportArgumentBuffers=YES;
+    id<MTLSamplerState> sampler=[d newSamplerStateWithDescriptor:sd];CHECK(sampler!=nil);
+    DM18Arguments *sampleArgs=[DM18Arguments new];[sampleArgs setTexture:texture.gpuResourceID atIndex:0];[sampleArgs setSamplerState:sampler.gpuResourceID atIndex:0];
+    id<MTLTexture> sampledTarget=[d newTextureWithDescriptor:td];pass.colorAttachments[0].texture=sampledTarget;
+    [cb beginCommandBufferWithAllocator:nil];re=[cb renderCommandEncoderWithDescriptor:pass];[re setRenderPipelineState:samplePSO];[re setArgumentTable:sampleArgs atStages:MTLRenderStageFragment];
+    [re drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];[re endEncoding];
+    ce=[cb computeCommandEncoder];[ce copyFromTexture:sampledTarget sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0) sourceSize:MTLSizeMake(16,16,1) toBuffer:pixels destinationOffset:0 destinationBytesPerRow:256 destinationBytesPerImage:4096];[ce endEncoding];finish(q,cb,event,3);
+    pixel=(uint8_t *)pixels.contents+8*256+8*4;CHECK(pixel[0]==255);CHECK(pixel[1]==0);CHECK(pixel[2]==0);CHECK(pixel[3]==255);
     // Unknown addresses must fail explicitly rather than silently omit a draw.
     BOOL failed=NO;@try { NSUInteger off; [((DM18Device *)d).registry buffer:1 offset:&off]; } @catch(NSException *e) { failed=YES; }CHECK(failed);
+    // Overlapping registrations must retain the larger live allocation. These
+    // are lookup-only objects in an isolated index, never submitted to Metal.
+    DM18Registry *ranges=[DM18Registry new];SyntheticBufferRange *large=[SyntheticBufferRange new],*small=[SyntheticBufferRange new];
+    large.gpuAddress=small.gpuAddress=0x10000;large.length=8192;small.length=4096;[ranges add:large];[ranges add:small];
+    NSUInteger offset=0;id found=nil;@try { found=[ranges buffer:0x11000 offset:&offset]; } @catch(NSException *e) {}
+    CHECK(found==large);CHECK(offset==4096);
     printf("{\"classic_gpu_readback_checks\":%u,\"passed\":true}\n",checks);
 } return 0; }
