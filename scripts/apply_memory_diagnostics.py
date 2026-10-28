@@ -4,6 +4,7 @@ def apply(repo):
     repo=pathlib.Path(repo);runtime=pathlib.Path(__file__).resolve().parents[1]/'runtime'
     for folder in ('dm/host','dm/ios/Sources','dm/gfx/nvn'):
         shutil.copyfile(runtime/'MemoryDiagnostics.h',repo/folder/'MemoryDiagnostics.h')
+    shutil.copyfile(runtime/'UEAllocationDiagnostics.inc',repo/'dm/host/UEAllocationDiagnostics.inc')
     p=repo/'dm/host/hle_uemalloc.c';s=p.read_text()
     if '#include "MemoryDiagnostics.h"' not in s:
         s=s.replace('#include "hle.h"','#include "hle.h"\n#include "MemoryDiagnostics.h"',1)
@@ -16,7 +17,11 @@ def apply(repo):
         old='g_zone = malloc_create_zone(0, 0);'
         if s.count(old)!=1:raise ValueError('Zone creation anchor changed')
         s=s.replace(old,'dm_memory_note("ue-install"); '+old)
-        p.write_text(s,encoding='utf-8',newline='\n')
+    if '#include "UEAllocationDiagnostics.inc"' not in s:
+        s=s.replace('static void *m_Malloc(void *self, size_t n, uint32_t a) {','#include "UEAllocationDiagnostics.inc"\nstatic void *m_Malloc(void *self, size_t n, uint32_t a) {',1)
+        s=s.replace('dm_memory_note("ue-malloc-failed");','int native_error=errno; dm_memory_note("ue-malloc-failed"); ue_allocation_failure("malloc",NULL,n,a,native_error);',1)
+        s=s.replace('dm_memory_note("ue-realloc-failed");','int native_error=errno; dm_memory_note("ue-realloc-failed"); ue_allocation_failure("realloc",p,n,a,native_error);',1)
+    p.write_text(s,encoding='utf-8',newline='\n')
     p=repo/'dm/ios/Sources/main.m';s=p.read_text()
     if '#include "MemoryDiagnostics.h"' not in s:
         s=s.replace('#include <stdio.h>','#include <stdio.h>\n#include "MemoryDiagnostics.h"',1)

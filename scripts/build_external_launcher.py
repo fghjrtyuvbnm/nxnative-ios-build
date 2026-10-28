@@ -83,7 +83,7 @@ def main(repo,work,download,source_run):
     info=plistlib.loads(plist.read_bytes())
     info.update(DMExternalGameData=True,DMExternalDataVersion=1,DMExternalDataIdentity=identity,DMExternalRomFSMarker=g.get('romfs_marker'),
                 LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
-    if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',DMShaderPackVersion=1,DMMemoryDiagnostics=True,CFBundleVersion='1.0.4')
+    if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',DMShaderPackVersion=1,DMMemoryDiagnostics=True,DMAllocationDiagnostics=1,CFBundleVersion='1.0.5')
     plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned external-folder launcher; no shader recompilation')
     progress(work,'compiling-app')
@@ -106,7 +106,7 @@ def main(repo,work,download,source_run):
     report=dict(previous,external_data_runtime=True,resource_only=False,geometry_validation='passed',external_data_identity=identity,source_shader_run=int(source_run),
                 template_sha256=sha256(template),template_bytes=template.stat().st_size,parts=split_file(template,out,'template'),
                 romfs_packaging='Export as separate data folder on Windows',signed=False,runtime_tested=False)
-    if ios18:report.update(native_audit,data_resources_embedded=False,memory_diagnostics=True,shader_pack_version=1,romfs_packaging='Use packed or original FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
+    if ios18:report.update(native_audit,data_resources_embedded=False,allocation_diagnostics=1,memory_diagnostics=True,shader_pack_version=1,romfs_packaging='Use packed or original FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
     progress(work,'template-ready')
     b.PROG.close();print('External-folder launcher template ready; shaders reused unchanged.',flush=True)

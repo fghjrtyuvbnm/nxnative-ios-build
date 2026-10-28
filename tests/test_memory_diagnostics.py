@@ -19,4 +19,6 @@ class MemoryDiagnosticsTests(unittest.TestCase):
             self.assertIn('dm_memory_note("ue-realloc-failed")',before)
             # Every original allocator operation and fatal check is preserved.
             self.assertEqual(before.count('die('),original.count('die('))
-            self.assertEqual(before[before.index('static void *realloc_aligned'):before.index('static void *m_Malloc')],original[original.index('static void *realloc_aligned'):original.index('static void *m_Malloc')])
+            algorithm=before[before.index('static void *realloc_aligned'):before.index('static void *m_Malloc')].replace('#include "UEAllocationDiagnostics.inc"\n','')
+            self.assertEqual(algorithm,original[original.index('static void *realloc_aligned'):original.index('static void *m_Malloc')])
+            self.assertIn('ue_allocation_failure("realloc",p,n,a,native_error)',before)
