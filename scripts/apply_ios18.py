@@ -16,6 +16,10 @@ def apply(repo):
     elif 'iOS: "18.0"' not in config:raise ValueError('Unexpected deployment target')
     config=config.replace('-mcpu=apple-a18','-mcpu=apple-a17').replace('# Graphics replay uses Metal 4 (MTL4CommandQueue etc., from iOS 26)','# Classic Metal compatibility target')
     project.write_text(config,encoding='utf-8',newline='\n')
+    settings=repo/'dm/games/settings.tsv'
+    rows=settings.read_text(encoding='utf-8').splitlines()
+    rows=[row for row in rows if row.split('\t',1)[0] not in ('DM_PRESENT_UPSCALE','DM_PSO_MTL4')]
+    settings.write_text('\n'.join(rows)+'\n',encoding='utf-8',newline='\n')
     if '#include "ios18_metal.h"' in text:return
     text=once(text,'#pragma clang attribute push(', '#include "ios18_metal.h"\n#pragma clang attribute push(')
     text=once(text,'g_dev = MTLCreateSystemDefaultDevice();','g_dev = dm18_device();')
