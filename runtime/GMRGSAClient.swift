@@ -15,6 +15,8 @@ public enum GMRGSAClient {
         request.setValue(clientInfo, forHTTPHeaderField: "X-MMe-Client-Info")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("text/x-xml-plist", forHTTPHeaderField: "Accept")
+        request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")
+        request.setValue("com.apple.gs.xcode.auth", forHTTPHeaderField: "X-Apple-App-Info")
         request.setValue("close", forHTTPHeaderField: "Connection")
         return request
     }
@@ -25,5 +27,14 @@ public enum GMRGSAClient {
         let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
         return try await session.data(for: prepare(input))
+    }
+}
+
+public enum GMRAuthenticationContext {
+    @TaskLocal public static var secondFactorCompleted = false
+
+    public static func stage(_ operation: String) -> String {
+        let safeOperation = ["init", "complete", "apptokens"].contains(operation) ? operation : "unknown"
+        return (secondFactorCompleted ? "Apple GSA post-2FA " : "Apple GSA first ") + safeOperation
     }
 }

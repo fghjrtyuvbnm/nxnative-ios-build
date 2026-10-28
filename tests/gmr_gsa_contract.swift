@@ -26,6 +26,8 @@ static func main() async throws {
     guard prepared.value(forHTTPHeaderField: "X-MMe-Client-Info") == GMRGSAClient.clientInfo,
           prepared.value(forHTTPHeaderField: "User-Agent") == GMRGSAClient.userAgent,
           prepared.value(forHTTPHeaderField: "Accept") == "text/x-xml-plist",
+          prepared.value(forHTTPHeaderField: "X-Xcode-Version") == "14.2 (14C18)",
+          prepared.value(forHTTPHeaderField: "X-Apple-App-Info") == "com.apple.gs.xcode.auth",
           prepared.httpBody == original.httpBody,
           prepared.value(forHTTPHeaderField: "X-Apple-I-MD") == "SYNTHETIC_OTP",
           original.value(forHTTPHeaderField: "X-MMe-Client-Info") == "synthetic-Mac-provider-identity" else {
@@ -42,5 +44,23 @@ static func main() async throws {
         guard request.value(forHTTPHeaderField: "X-MMe-Client-Info") == GMRGSAClient.clientInfo,
               request.value(forHTTPHeaderField: "Connection") == "close" else { fatalError("Policy not applied at transport") }
     }
+    guard GMRAuthenticationContext.stage("init") == "Apple GSA first init" else { fatalError("Wrong initial stage") }
+    await GMRAuthenticationContext.$secondFactorCompleted.withValue(true) {
+        guard GMRAuthenticationContext.stage("init") == "Apple GSA post-2FA init" else { fatalError("Post-2FA round lost") }
+    }
+    guard GMRAuthenticationContext.stage("init") == "Apple GSA first init" else { fatalError("Round state leaked into next login") }
+    let isolated = await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
+        for state in [true, false, true, false] {
+            group.addTask {
+                GMRAuthenticationContext.$secondFactorCompleted.withValue(state) {
+                    GMRAuthenticationContext.stage("init") == (state ? "Apple GSA post-2FA init" : "Apple GSA first init")
+                }
+            }
+        }
+        for await valid in group { if !valid { return false } }
+        return true
+    }
+    guard isolated else { fatalError("Concurrent authentication round state leaked") }
+    print("GSA application headers and isolated first/post-2FA round fixtures passed")
     print("GSA/provider identity separation, payload integrity and three-phase mock transport passed")
 }}
