@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <malloc/malloc.h>
 #include <mach/mach.h>
+#include "MemoryDiagnostics.h"
 static malloc_zone_t *g_zone;
 static size_t align_of(uint32_t a){return a>16?a:16;}
 #include "UEAllocationDiagnostics.inc"
 int main(void){
+    dm_memory_note("allocation-observer-fixture");
     g_zone=malloc_create_zone(0,0);assert(g_zone);
     void *owned=malloc_zone_malloc(g_zone,1024);assert(owned);memset(owned,0x5a,1024);
     void *foreign=malloc(1024);assert(foreign);

@@ -6,7 +6,7 @@ root=pathlib.Path(os.environ['RUNNER_TEMP'])/'shader-pack-tests';root.mkdir()
 probe=root/'allocation-observation'
 subprocess.run(['xcrun','clang','-O1','-UNDEBUG','-I'+str(kit/'runtime'),kit/'runtime/allocation_diagnostics_test.c','-o',probe],check=True)
 observation=subprocess.run([probe],capture_output=True,text=True,check=True,timeout=30)
-for marker in ('owner_known=1 owner_is_unreal=1','owner_known=1 owner_is_unreal=0','own_fresh_ok=1','default_fresh_ok=1','vm_allocate_result=0 vm_release_result=0','probes_skipped=request_size'):
+for marker in ('[vm-policy] stage=allocation-observer-fixture region_count=','owner_known=1 owner_is_unreal=1','owner_known=1 owner_is_unreal=0','own_fresh_ok=1','default_fresh_ok=1','vm_allocate_result=0 vm_release_result=0','probes_skipped=request_size'):
     if marker not in observation.stderr:raise ValueError('Allocation observation fixture failed: '+marker)
 print('Allocation observation ownership, probe release and request-bound fixtures passed',flush=True)
 loose=root/'loose';loose.mkdir()
