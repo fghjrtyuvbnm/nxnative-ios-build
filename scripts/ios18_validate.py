@@ -15,3 +15,6 @@ check_imports(subprocess.check_output(['xcrun','nm','-m',tests/'t_geometry'],tex
 print('Current NVN classic executable has no Metal 4 imports',flush=True)
 subprocess.run([str(tests/'t_geometry')],env=dict(os.environ,MTL_DEBUG_LAYER='1',DM_TEST_NO_METAL4='1'),check=True,timeout=180)
 print('Current NVN geometry GPU tests passed through classic Metal',flush=True)
+subprocess.run(['make','-C',str(tests),'GAME=0100B8A026F14000','t_present_crop'],check=True,stdout=subprocess.DEVNULL)
+subprocess.run([str(tests/'t_present_crop')],env=dict(os.environ,MTL_DEBUG_LAYER='1'),check=True,timeout=120)
+print('Current NVN presentation pixel tests passed through classic Metal',flush=True)
