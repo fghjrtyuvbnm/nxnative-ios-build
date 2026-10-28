@@ -11,15 +11,25 @@ static unsigned checks;
 @implementation SyntheticBufferRange
 - (MTLStorageMode)storageMode { return MTLStorageModeShared; }
 @end
+static void overlapping_ranges(void) {
+    // Lookup-only objects never enter a real GPU command buffer.
+    DM18Registry *ranges=[DM18Registry new];SyntheticBufferRange *large=[SyntheticBufferRange new],*small=[SyntheticBufferRange new];
+    large.gpuAddress=small.gpuAddress=0x10000;large.length=8192;small.length=4096;[ranges add:large];[ranges add:small];
+    NSUInteger offset=0;id found=nil;@try { found=[ranges buffer:0x11000 offset:&offset]; } @catch(NSException *e) {}
+    CHECK(found==large);CHECK(offset==4096);
+}
 static void finish(id<DM18CommandQueue> q,id<DM18CommandBuffer> cb,id<MTLSharedEvent> event,uint64_t value) {
     [cb endCommandBuffer];[q commit:&cb count:1];[q signalEvent:event value:value];
     NSDate *end=[NSDate dateWithTimeIntervalSinceNow:30];
     while (event.signaledValue<value && end.timeIntervalSinceNow>0) [NSThread sleepForTimeInterval:.001];
     CHECK(event.signaledValue>=value);
+    // The GPU event can precede the host completion notification/status update.
+    [((DM18CommandBuffer *)cb).native waitUntilCompleted];
     CHECK(((DM18CommandBuffer *)cb).native.status==MTLCommandBufferStatusCompleted);
     CHECK(!((DM18CommandBuffer *)cb).native.error);
 }
 int main(void) { @autoreleasepool {
+    overlapping_ranges();
     id<MTLDevice> d=dm18_device();CHECK(d!=nil);
     DM18QueueDescriptor *qd=[DM18QueueDescriptor new];NSError *error=nil;
     id<DM18CommandQueue> q=(id)[d newMTL4CommandQueueWithDescriptor:(id)qd error:&error];CHECK(q!=nil);
@@ -76,11 +86,5 @@ int main(void) { @autoreleasepool {
     pixel=(uint8_t *)pixels.contents+8*256+8*4;CHECK(pixel[0]==255);CHECK(pixel[1]==0);CHECK(pixel[2]==0);CHECK(pixel[3]==255);
     // Unknown addresses must fail explicitly rather than silently omit a draw.
     BOOL failed=NO;@try { NSUInteger off; [((DM18Device *)d).registry buffer:1 offset:&off]; } @catch(NSException *e) { failed=YES; }CHECK(failed);
-    // Overlapping registrations must retain the larger live allocation. These
-    // are lookup-only objects in an isolated index, never submitted to Metal.
-    DM18Registry *ranges=[DM18Registry new];SyntheticBufferRange *large=[SyntheticBufferRange new],*small=[SyntheticBufferRange new];
-    large.gpuAddress=small.gpuAddress=0x10000;large.length=8192;small.length=4096;[ranges add:large];[ranges add:small];
-    NSUInteger offset=0;id found=nil;@try { found=[ranges buffer:0x11000 offset:&offset]; } @catch(NSException *e) {}
-    CHECK(found==large);CHECK(offset==4096);
     printf("{\"classic_gpu_readback_checks\":%u,\"passed\":true}\n",checks);
 } return 0; }

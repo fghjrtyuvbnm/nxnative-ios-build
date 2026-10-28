@@ -1,4 +1,5 @@
-import struct,unittest
+import pathlib,struct,sys,unittest
+sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'scripts'))
 from ios18_artifact import check_macho
 
 def executable(platform=2,minimum=18,command=0x32):
