@@ -6,6 +6,8 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 #include <pthread.h>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wprotocol" // Unchanged Metal methods are forwarded to the real device/encoder.
 
 @interface DM18Registry : NSObject {
     NSLock *_lock;
@@ -70,9 +72,9 @@
 @property NSUInteger maxBufferBindCount,maxTextureBindCount,maxSamplerStateBindCount;
 @end
 @implementation DM18ArgumentTableDescriptor @end
-@protocol DM18Allocator <NSObject> - (void)reset; @end
+@protocol DM18Allocator <NSObject> - (void)reset; @property(readonly) NSUInteger allocatedSize; @end
 @interface DM18Allocator : NSObject <DM18Allocator> @end
-@implementation DM18Allocator - (void)reset {} @end
+@implementation DM18Allocator - (void)reset {} - (NSUInteger)allocatedSize { return 0; } @end
 @interface DM18AllocatorDescriptor : NSObject @property(copy) NSString *label; @end
 @implementation DM18AllocatorDescriptor @end
 @interface DM18QueueDescriptor : NSObject @property(strong) dispatch_queue_t feedbackQueue; @end
@@ -87,10 +89,13 @@
 @end
 
 @protocol DM18Encoder <NSObject>
+- (void)setLabel:(NSString *)label;
 - (void)endEncoding;
 - (void)barrierAfterQueueStages:(MTLStages)a beforeStages:(MTLStages)b visibilityOptions:(NSUInteger)v;
 - (void)barrierAfterStages:(MTLStages)a beforeQueueStages:(MTLStages)b visibilityOptions:(NSUInteger)v;
 - (void)barrierAfterEncoderStages:(MTLStages)a beforeEncoderStages:(MTLStages)b visibilityOptions:(NSUInteger)v;
+- (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g afterStage:(MTLRenderStages)stage intoHeap:(id)heap atIndex:(NSUInteger)index;
+- (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g intoHeap:(id)heap atIndex:(NSUInteger)index;
 @end
 @protocol DM18RenderEncoder <MTLRenderCommandEncoder,DM18Encoder>
 - (void)setArgumentTable:(id<DM18Arguments>)table atStages:(MTLRenderStages)stages;
@@ -180,6 +185,8 @@
 - (void)barrierAfterQueueStages:(MTLStages)a beforeStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
 - (void)barrierAfterStages:(MTLStages)a beforeQueueStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
 - (void)barrierAfterEncoderStages:(MTLStages)a beforeEncoderStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
+- (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g afterStage:(MTLRenderStages)stage intoHeap:(id)heap atIndex:(NSUInteger)index { (void)g;(void)stage;(void)heap;(void)index;[NSException raise:NSInternalInconsistencyException format:@"Metal 4 counter heaps are unavailable on the classic backend"]; }
+- (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g intoHeap:(id)heap atIndex:(NSUInteger)index { (void)g;(void)heap;(void)index;[NSException raise:NSInternalInconsistencyException format:@"Metal 4 counter heaps are unavailable on the classic backend"]; }
 - (void)endEncoding { if (render) [render endEncoding]; if (compute) [compute endEncoding]; if (blit) [blit endEncoding]; render=nil;compute=nil;blit=nil; }
 @end
 
@@ -290,3 +297,4 @@ static void dm18_register(id<MTLDevice> d,id resource) { if ([(id)d isKindOfClas
 #define MTL4RenderPassColorAttachmentDescriptor MTLRenderPassColorAttachmentDescriptor
 #define MTL4CommitOptions DM18CommitOptions
 #define MTL4CommitFeedback MTLCommandBuffer
+#pragma clang diagnostic pop

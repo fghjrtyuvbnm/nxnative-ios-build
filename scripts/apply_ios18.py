@@ -10,8 +10,8 @@ def apply(repo):
     repo=pathlib.Path(repo)
     if subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()!=SOURCE:raise ValueError('Unexpected source revision')
     source=repo/'dm/gfx/nvn/nvn_mtl.m';text=source.read_text(encoding='utf-8')
-    if '#include "ios18_metal.h"' in text:return
     shutil.copyfile(pathlib.Path(__file__).resolve().parents[1]/'runtime/ios18_metal.h',source.parent/'ios18_metal.h')
+    if '#include "ios18_metal.h"' in text:return
     text=once(text,'#pragma clang attribute push(', '#include "ios18_metal.h"\n#pragma clang attribute push(')
     text=once(text,'g_dev = MTLCreateSystemDefaultDevice();','g_dev = dm18_device();')
     text=once(text,'if (!allocation) return;','if (!allocation) return;\n    dm18_register(g_dev, (id)allocation);')
@@ -22,6 +22,7 @@ def apply(repo):
     text=once(text,'    [g_q addResidencySet:g_res];','    /* Explicit classic-encoder resource declarations replace queue residency. */')
     text=once(text,'static int pso4_on(void) {','static int pso4_on(void) {\n    return 0; // Classic render pipelines use MTLDevice, with their concrete formats.')
     text=once(text,'static int fx_mode(void) {','static int fx_mode(void) {\n    return 0; // Metal-4 MetalFX is unavailable; retain the normal bilinear present.')
+    text=once(text,'static int gp_active(void) {','static int gp_active(void) {\n    if (getenv("DM_NVN_GPUPROF")) { static int warned; if (!warned++) MLOG("Per-encoder GPU timing requires Metal 4 and is unavailable on the classic backend"); }\n    return 0; // Never report synthetic Metal 4 counter-heap samples.')
     text=once(text,'if (g_present_layer_resident != layer) { [g_q4 addResidencySet:layer.residencySet]; g_present_layer_resident = layer; }',
               '/* CAMetalLayer residency sets require iOS 26; classic drawable ownership is automatic. */')
     text=text.replace('[dr presentAfterMinimumDuration:period];','(void)period;').replace('[dr present];','(void)dr;')
