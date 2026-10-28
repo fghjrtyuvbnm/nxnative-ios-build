@@ -66,6 +66,14 @@ Packing reduces directory entries and filesystem allocation overhead; it is not 
 
 The Windows export verified all 157,022 packed shader entries against the original SHA-256 records and copied other resources with hash verification. An additional 1,000 random reads across eight workers passed. The exported folder contains 19 files including its manifest, with the original full data preserved. The Python suite passed 51 tests. Run `40626052004` passed 15 native pack checks, including offsets beyond 2 GB, 100 concurrent reads, corruption/truncation rejection, loose-directory compatibility, backing-data lifetime and actual GPU computation using a packed library. The 98 standalone GPU, 1,066 geometry, 63 presentation and 480-frame temporal checks also passed without erroneous, black or stale frames. These results do not establish physical-drive performance or full-game compatibility on an iPad.
 
+## Device memory failure diagnostics
+
+A supplied iPad mini 7 log reached early rendered frames and prepared 59 shaders, then explicitly aborted in the Unreal host allocator while reallocating 8,653,568 bytes. Its reported 0.81 GiB is the Unreal-zone counter, not the whole process footprint. The log does not establish the installed signing entitlements, available process budget or whether virtual-address constraints caused the failure. It is not evidence of successful full gameplay.
+
+The separate `ios18-memory-diagnostic-unsigned.ipa` (bundle version 1.0.4) adds `[memdiag]` lines at application boot, before game preload, during shader-index initialization and at fatal allocator failure. They report the actual iOS process allocation headroom, physical footprint, resident size and virtual size. Mac synthetic runs report zero for the iOS-only headroom metric. Allocator operations, fatal checks, game parameters and renderer policy remain unchanged. This is a diagnostic build, not a confirmed crash repair.
+
+`MemoryRequirements.entitlements` is a sidecar request for Increased Memory Limit and Extended Virtual Addressing. It does not sign the executable, change the Apple App ID capability or prove that a sideloader retained either entitlement in the installed signature. The IPA remains unsigned. Apply requests only through a signing tool that supports them and verify the installed result. Apple's references describe the [memory limit](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.increased-memory-limit) and [virtual address](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.extended-virtual-addressing) capabilities separately; [SideStore issue 1616](https://github.com/SideStore/SideStore/issues/1616) reports a signing path that dropped the memory entitlement. The user's SideStore version and installed capabilities have not been verified.
+
 ## Test commands
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
