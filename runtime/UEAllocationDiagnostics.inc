@@ -2,8 +2,12 @@
 #include <errno.h>
 static void ue_allocation_failure(const char *operation,void *pointer,size_t size,uint32_t alignment,int native_error) {
     malloc_zone_t *owner=pointer?malloc_zone_from_ptr(pointer):NULL;
-    size_t old=owner?malloc_size(pointer):0;
-    fprintf(stderr,"[allocdiag] op=%s request_bytes=%zu alignment=%u old_bytes=%zu owner_known=%d owner_is_unreal=%d native_errno=%d\n",operation,size,alignment,old,owner!=NULL,owner==g_zone,native_error);
+    size_t virtual_size=0;
+#ifdef UE_LARGE_VM_V1
+    virtual_size=ue_vm_size(pointer);
+#endif
+    size_t old=virtual_size?virtual_size:(owner?malloc_size(pointer):0);
+    fprintf(stderr,"[allocdiag] op=%s request_bytes=%zu alignment=%u old_bytes=%zu owner_known=%d owner_is_unreal=%d native_errno=%d owner_is_vm=%d\n",operation,size,alignment,old,owner!=NULL||virtual_size!=0,owner==g_zone,native_error,virtual_size!=0);
     // Bound diagnostic work independently of the application request size.
     // Probe one at a time, release immediately, do not commit/touch the pages.
     if (!size || size>16*1024*1024){fprintf(stderr,"[allocdiag] probes_skipped=request_size\n");return;}

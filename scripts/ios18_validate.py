@@ -3,6 +3,9 @@ import os,pathlib,shutil,subprocess,sys
 repo=pathlib.Path(sys.argv[1]);kit=pathlib.Path(__file__).resolve().parents[1]
 from apply_ios18 import apply
 apply(repo)
+from apply_ue_vm import apply as apply_vm
+apply_vm(repo)
+subprocess.run([sys.executable,kit/'scripts/validate_ue_vm.py',repo],check=True)
 from apply_shader_pack import apply as apply_pack
 apply_pack(repo)
 subprocess.run([sys.executable,kit/'scripts/validate_shader_pack.py'],check=True)
