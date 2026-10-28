@@ -27,7 +27,7 @@ def prepare(source):
         request.timeoutInterval = 15
         let (data, response) = try await URLSession.shared.data(for: request)
         _ = try GMRServer.clientInfo(data, response: response as? HTTPURLResponse)
-        return "HTTP 200: v3 metadata is valid. This check does not test Apple sign-in."
+        return "v3 metadata is valid. This check does not test Apple sign-in."
     }
 '''
     text = replace_once(text, '    func getAnisetteData(refresh: Bool = false)', configure+'\n    func getAnisetteData(refresh: Bool = false)')
@@ -99,7 +99,7 @@ def prepare(source):
             } footer: {
                 Text("Presets are from SideStore's official directory. Changing servers resets this helper's Anisette state and signs it out. The check sends no Apple account credentials.")
             }
-            .disabled(viewModel.isLoginInProgress)'''
+            .disabled(viewModel.isLoginInProgress || isCheckingServer)'''
     text = replace_once(text, old, new)
     methods = '''
     func applyServer() {
