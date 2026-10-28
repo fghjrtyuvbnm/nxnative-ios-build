@@ -14,7 +14,7 @@
     NSMapTable<NSNumber *,id> *_buffers, *_textures, *_samplers;
     NSHashTable<id<MTLResource>> *_resources;
     NSMutableArray<NSNumber *> *_addresses;
-    NSUInteger _epoch;
+    NSUInteger _epoch,_bufferRegistrations;
 }
 - (void)add:(id)object;
 - (id<MTLBuffer>)buffer:(uint64_t)address offset:(NSUInteger *)offset;
@@ -23,18 +23,26 @@
 - (NSArray *)resources:(NSUInteger *)epoch;
 @end
 @implementation DM18Registry
-- (instancetype)init { if ((self=[super init])) { _lock=[NSLock new]; _buffers=[NSMapTable strongToWeakObjectsMapTable]; _textures=[NSMapTable strongToWeakObjectsMapTable]; _samplers=[NSMapTable strongToWeakObjectsMapTable]; _resources=[NSHashTable weakObjectsHashTable]; _addresses=[NSMutableArray array]; } return self; }
+- (instancetype)init { if ((self=[super init])) { _lock=[NSLock new]; _buffers=[NSMapTable strongToStrongObjectsMapTable]; _textures=[NSMapTable strongToWeakObjectsMapTable]; _samplers=[NSMapTable strongToWeakObjectsMapTable]; _resources=[NSHashTable weakObjectsHashTable]; _addresses=[NSMutableArray array]; } return self; }
 - (void)add:(id)object {
     if (!object) return;
     [_lock lock];
     if ([object conformsToProtocol:@protocol(MTLBuffer)]) {
         id<MTLBuffer> b=object; NSNumber *key=@(b.gpuAddress);
-        if (![_buffers objectForKey:key]) {
+        NSHashTable *group=[_buffers objectForKey:key];
+        if (!group) {
             NSUInteger lo=0,hi=_addresses.count;
             while (lo<hi) { NSUInteger m=(lo+hi)/2; if (_addresses[m].unsignedLongLongValue<b.gpuAddress) lo=m+1; else hi=m; }
             if (lo==_addresses.count || ![_addresses[lo] isEqual:key]) [_addresses insertObject:key atIndex:lo];
+            group=[NSHashTable weakObjectsHashTable];[_buffers setObject:group forKey:key];
         }
-        [_buffers setObject:b forKey:key];
+        [group addObject:b];
+        // A weak interval index must not retain retired native buffers or an
+        // unbounded collection of empty address groups during long sessions.
+        if (!(++_bufferRegistrations%256)) for (NSUInteger i=_addresses.count;i>0;i--) {
+            NSNumber *address=_addresses[i-1];
+            if (!((NSHashTable *)[_buffers objectForKey:address]).count) { [_buffers removeObjectForKey:address];[_addresses removeObjectAtIndex:i-1]; }
+        }
     }
     if ([object conformsToProtocol:@protocol(MTLTexture)]) [_textures setObject:object forKey:@(((id<MTLTexture>)object).gpuResourceID._impl)];
     if ([object conformsToProtocol:@protocol(MTLSamplerState)]) [_samplers setObject:object forKey:@(((id<MTLSamplerState>)object).gpuResourceID._impl)];
@@ -45,8 +53,14 @@
     *offset=0; if (!address) return nil;
     [_lock lock]; NSUInteger lo=0,hi=_addresses.count;
     while (lo<hi) { NSUInteger m=(lo+hi)/2; if (_addresses[m].unsignedLongLongValue<=address) lo=m+1; else hi=m; }
-    id<MTLBuffer> b=lo ? [_buffers objectForKey:_addresses[lo-1]] : nil;
-    if (b && address-b.gpuAddress<b.length) *offset=(NSUInteger)(address-b.gpuAddress); else b=nil;
+    id<MTLBuffer> b=nil;
+    while (lo && !b) {
+        NSNumber *key=_addresses[--lo];NSHashTable *group=[_buffers objectForKey:key];
+        for (id<MTLBuffer> candidate in group.allObjects)
+            if (address-candidate.gpuAddress<candidate.length && (!b || candidate.length>b.length)) b=candidate;
+        if (!group.count) { [_buffers removeObjectForKey:key];[_addresses removeObjectAtIndex:lo]; }
+    }
+    if (b) *offset=(NSUInteger)(address-b.gpuAddress);
     [_lock unlock];
     if (!b) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal buffer address"];
     return b;

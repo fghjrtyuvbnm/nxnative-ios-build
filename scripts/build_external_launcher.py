@@ -45,6 +45,7 @@ def main(repo,work,download,source_run):
     from apply_runtime import apply
     apply(repo)
     ios18=os.environ.get('TARGET_IOS')=='18.0'
+    if ios18 and previous.get('shader_failed'):raise ValueError('iOS 18 publication requires all source shaders to have succeeded')
     if ios18:
         from apply_ios18 import apply as apply_compatibility
         apply_compatibility(repo)

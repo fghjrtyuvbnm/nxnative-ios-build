@@ -17,6 +17,11 @@ static void overlapping_ranges(void) {
     large.gpuAddress=small.gpuAddress=0x10000;large.length=8192;small.length=4096;[ranges add:large];[ranges add:small];
     NSUInteger offset=0;id found=nil;@try { found=[ranges buffer:0x11000 offset:&offset]; } @catch(NSException *e) {}
     CHECK(found==large);CHECK(offset==4096);
+    SyntheticBufferRange *nested=[SyntheticBufferRange new];nested.gpuAddress=0x10800;nested.length=512;[ranges add:nested];
+    found=[ranges buffer:0x11800 offset:&offset];CHECK(found==large);CHECK(offset==6144);
+    @autoreleasepool { SyntheticBufferRange *retired=[SyntheticBufferRange new];retired.gpuAddress=0x10c00;retired.length=128;[ranges add:retired]; }
+    found=[ranges buffer:0x10e00 offset:&offset];CHECK(found==large);CHECK(offset==3584);
+    BOOL rejected=NO;@try { [ranges buffer:0x12000 offset:&offset]; } @catch(NSException *e) { rejected=YES; }CHECK(rejected);
 }
 static void finish(id<DM18CommandQueue> q,id<DM18CommandBuffer> cb,id<MTLSharedEvent> event,uint64_t value) {
     [cb endCommandBuffer];[q commit:&cb count:1];[q signalEvent:event value:value];
