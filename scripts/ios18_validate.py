@@ -15,6 +15,12 @@ check_imports(subprocess.check_output(['xcrun','nm','-m',tests/'t_geometry'],tex
 print('Current NVN classic executable has no Metal 4 imports',flush=True)
 subprocess.run([str(tests/'t_geometry')],env=dict(os.environ,MTL_DEBUG_LAYER='1',DM_TEST_NO_METAL4='1'),check=True,timeout=180)
 print('Current NVN geometry GPU tests passed through classic Metal',flush=True)
+present_test=tests/'t_present_crop.m';text=present_test.read_text()
+if 'CLASSIC_SRGB_REGRESSION' not in text:
+    anchor='    if([MTLFXSpatialScalerDescriptor supportsMetal4FX:g_dev]) {'
+    if text.count(anchor)!=1:raise ValueError('Presentation regression insertion point changed')
+    text=text.replace(anchor,(kit/'runtime/ios18_srgb_present.inc').read_text()+'\n'+anchor,1)
+    present_test.write_text(text)
 subprocess.run(['make','-C',str(tests),'GAME=0100B8A026F14000','t_present_crop'],check=True,stdout=subprocess.DEVNULL)
 subprocess.run([str(tests/'t_present_crop')],env=dict(os.environ,MTL_DEBUG_LAYER='1'),check=True,timeout=120)
 print('Current NVN presentation pixel tests passed through classic Metal',flush=True)
