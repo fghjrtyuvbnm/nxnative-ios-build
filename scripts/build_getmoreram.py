@@ -1,5 +1,5 @@
 """Build the pinned public helper without credentials or Apple signing."""
-import hashlib, json, os, pathlib, plistlib, subprocess, sys, zipfile
+import hashlib, json, os, pathlib, plistlib, shutil, subprocess, sys, zipfile
 
 SOURCE = 'a176a5c0271af8f462170065132021fb683b1706'
 URL = 'https://github.com/Loganbogan9/GetMoreRamExtended.git'
@@ -33,6 +33,20 @@ def main(base):
     executable = app/info['CFBundleExecutable']
     arches = subprocess.check_output(['lipo', '-archs', str(executable)], text=True).strip()
     if arches != 'arm64': raise ValueError('Unexpected architecture')
+    # Prebuilt upstream frameworks may retain their vendor signatures even
+    # when Xcode signing is disabled. Remove those, not their executable code.
+    removed = 0
+    for path in sorted(app.rglob('*')):
+        if not path.is_file() or path.is_symlink(): continue
+        with path.open('rb') as stream: magic = stream.read(4)
+        if magic not in (b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'): continue
+        if subprocess.run(['codesign', '-d', str(path)], capture_output=True).returncode == 0:
+            run('codesign', '--remove-signature', str(path)); removed += 1
+    for directory in app.rglob('_CodeSignature'):
+        if directory.is_symlink() or app.resolve() not in directory.resolve().parents:
+            raise ValueError('Unsafe signature directory')
+        shutil.rmtree(directory)
+    print('Removed prebuilt dependency signatures: ' + str(removed), flush=True)
     p = subprocess.run(['codesign', '-d', str(app)], capture_output=True)
     if p.returncode == 0: raise ValueError('Unexpected app signature')
     if list(app.rglob('embedded.mobileprovision')) or list(app.rglob('_CodeSignature')):
@@ -49,7 +63,7 @@ def main(base):
     run('ditto', '-c', '-k', '--keepParent', str(payload), str(ipa))
     with zipfile.ZipFile(ipa) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
-    report = {'source_repository': URL, 'source_commit': SOURCE, 'bundle_identifier': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'], 'minimum_ios': info['MinimumOSVersion'], 'architecture': arches, 'signed': False, 'apple_credentials_used': False, 'both_capability_actions_present': True, 'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(), 'bytes': ipa.stat().st_size, 'device_login_tested': False, 'capability_grant_tested': False}
+    report = {'source_repository': URL, 'source_commit': SOURCE, 'bundle_identifier': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'], 'minimum_ios': info['MinimumOSVersion'], 'architecture': arches, 'signed': False, 'prebuilt_signatures_removed': removed, 'apple_credentials_used': False, 'both_capability_actions_present': True, 'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(), 'bytes': ipa.stat().st_size, 'device_login_tested': False, 'capability_grant_tested': False}
     ipa.with_suffix('.verification.json').write_text(json.dumps(report, indent=2))
     print('Unsigned helper built and package checks passed', flush=True)
 
