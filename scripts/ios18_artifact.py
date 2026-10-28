@@ -3,7 +3,7 @@ import pathlib,plistlib,struct,subprocess
 
 def check_imports(imports):
     unavailable=[line for line in imports.splitlines() if '(undefined)' in line and 'MTL4' in line]
-    if unavailable:raise ValueError('Classic executable still imports Metal 4 objects')
+    if unavailable:raise ValueError('Classic executable still imports Metal 4 objects: '+', '.join(line.split()[-1] for line in unavailable))
     return {'strong_metal4_imports':0,'weak_metal4_imports':0}
 
 def check_macho(binary):
