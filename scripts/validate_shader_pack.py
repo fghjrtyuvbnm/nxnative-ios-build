@@ -1,5 +1,5 @@
 """Synthetic cross-language and GPU checks, no game inputs or private credentials."""
-import json,os,pathlib,shutil,subprocess,sys
+import hashlib,json,os,pathlib,shutil,subprocess,sys
 from shader_pack import pack
 kit=pathlib.Path(__file__).resolve().parents[1]
 root=pathlib.Path(os.environ['RUNNER_TEMP'])/'shader-pack-tests';root.mkdir()
@@ -9,6 +9,12 @@ subprocess.run(['xcrun','-sdk','macosx','metal','-c',source,'-o',root/'test.air'
 subprocess.run(['xcrun','-sdk','macosx','metallib',root/'test.air','-o',loose/'fixture_b.metallib'],check=True)
 (loose/'fixture_b.json').write_text('{"entry":"main0"}')
 pack(loose,root/'packed')
+# Sparse fixture proves offsets above signed 32-bit without uploading large data.
+large=root/'large';large.mkdir();entries={};offset=0
+for i in range(33):entries[f'a{i:03}_b.metallib']=[offset,64*1024*1024,'0'*64];offset+=64*1024*1024
+payload=(loose/'fixture_b.metallib').read_bytes();entries['z_b.metallib']=[offset,len(payload),hashlib.sha256(payload).hexdigest()]
+with (large/'shaders.pack').open('wb') as f:f.seek(offset);f.write(payload)
+(large/'shaders.index.json').write_text(json.dumps(dict(version=1,bytes=offset+len(payload),entries=entries)))
 for name in ('corrupt','truncated','invalid'):shutil.copytree(root/'packed',root/name)
 p=root/'corrupt/shaders.pack';data=bytearray(p.read_bytes());data[-1]^=1;p.write_bytes(data)
 p=root/'truncated/shaders.pack';p.write_bytes(p.read_bytes()[:-1])

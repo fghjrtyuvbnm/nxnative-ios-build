@@ -12,6 +12,7 @@ int main(int argc,char **argv){@autoreleasepool{
     dispatch_apply(100,dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0),^(size_t i){@autoreleasepool{if(![dm_shader_data(path,NULL) isEqualToData:data])__sync_fetch_and_add(&failures,1);}});
     CHECK(failures==0);
     CHECK([dm_shader_data([root stringByAppendingPathComponent:@"loose/fixture_b.metallib"],NULL) isEqualToData:data]);
+    CHECK([dm_shader_data([root stringByAppendingPathComponent:@"large/z_b.metallib"],NULL) isEqualToData:data]);
     for(NSString *folder in @[@"corrupt",@"truncated",@"invalid"]){error=nil;CHECK(dm_shader_data([[root stringByAppendingPathComponent:folder] stringByAppendingPathComponent:@"fixture_b.metallib"],&error)==nil&&error!=nil);}
     // Keep the backing NSData alive solely through the dispatch-data destructor.
     dispatch_data_t payload;
