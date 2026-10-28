@@ -16,3 +16,5 @@ jobs:
       - uses: ./.github/actions/macos-build-setup
       - name: Reproduce the original missing-Metal-4 failure
         run: python -u scripts/ios18_baseline.py "$RUNNER_TEMP/nxnative"
+      - name: Validate classic Metal readback and geometry execution
+        run: python -u scripts/ios18_validate.py "$RUNNER_TEMP/nxnative"
