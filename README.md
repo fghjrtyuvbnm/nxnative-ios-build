@@ -86,7 +86,15 @@ Within the large class, a shrink may retain the current allocation capacity; mig
 
 Windows passed 53 Python tests and the candidate C contract after reproducing the original policy's expected behavioral failure in the limited-backend fixture. Native run `40645223971` independently observed the same baseline failure, passed the candidate contract and verified actual Metal shared-buffer GPU writes on VM-backed memory. Its standalone GPU, geometry, presentation and 480-frame temporal gates also passed. No physical-device success is claimed for this candidate.
 
-## Running checks
+## Installed-signature and VM failure audit
+
+The `ios18-vm-audit-unsigned.ipa` (bundle version 1.0.7) retains the 1.0.6 allocation policy and adds observation. VM allocation failure logs preserve the backend's original return code, requested/rounded/mapping lengths, page size and alignment. Memory snapshots also report VM region count and supported process resource limits. Failure probes are bounded to 64 MiB, run sequentially, release temporary reservations and never substitute for the failed allocation. They do not touch probe pages or prove that physical memory can be committed.
+
+At boot the app inspects its own installed executable's XML entitlement slot and its own embedded profile's XML entitlement dictionary. It emits only the two memory-related flags. It does not output identifiers, certificates, raw profiles or other entitlement fields. These are signing-request/profile declarations, not an assertion that the kernel has activated a capability; the profile is not cryptographically reverified by this observer. Unsupported, unreadable, malformed, unsigned or DER-only inputs report unknown (`-1`) when no XML entitlement dictionary can be read. A key absent from a successfully parsed dictionary reports `0`.
+
+Synthetic native fixtures cover signature/profile layer differences, absent/truncated/malformed data, DER-only unknown handling, descriptor lifetime and omission of synthetic private fields from output. The diagnostic does not sign the app, modify provisioning, raise memory limits or claim to repair startup. All real device logs and their diagnostic measurements remain outside public documentation.
+
+## Check commands
 
 `NXNATIVE_REPO=<prepared-checkout> python -m unittest discover -s tests -v`
 
