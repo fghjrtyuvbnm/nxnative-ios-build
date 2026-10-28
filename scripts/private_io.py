@@ -106,6 +106,9 @@ def publish_ios18(work):
     tag='ios18-launcher-'+os.environ['GITHUB_RUN_ID']
     gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Unsigned iOS 18 launcher for iPad mini 7','--notes','Private iOS 18 ARM64 Metal 3 launcher. Reuses the original complete external FFRS-Data directory. Device gameplay and physical USB access remain unverified.','--prerelease')
     gh('release','upload',tag,'--repo',DATA_REPOSITORY,ipa,check)
+    if m.get('memory_diagnostics'):
+        request=pathlib.Path(__file__).resolve().parents[1]/'runtime/MemoryRequirements.entitlements'
+        gh('release','upload',tag,'--repo',DATA_REPOSITORY,request)
 
 def download_resources(work,source_run):
     if not str(source_run).isdigit():raise ValueError('Resource run must be numeric')
