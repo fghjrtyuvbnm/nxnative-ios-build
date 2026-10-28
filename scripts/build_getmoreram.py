@@ -17,17 +17,34 @@ def run(*args, cwd=None, log=None):
 def main(base):
     base = pathlib.Path(base); base.mkdir(parents=True, exist_ok=False)
     source = base/'source'; log = base/'build.log'
+    loginfix = os.environ.get('GMR_LOGIN_FIX') == '1'
+    commit = '6bd5cf9733900d925370865d60c7db8906e60bab' if loginfix else SOURCE
+    url = 'https://github.com/no1ce21/GetMoreRam.git' if loginfix else URL
+    project_name = 'GetMoreRam' if loginfix else 'Entitlement'
     run('git', 'init', str(source))
-    run('git', 'fetch', '--depth=1', URL, SOURCE, cwd=source, log=log)
+    run('git', 'fetch', '--depth=1', url, commit, cwd=source, log=log)
     run('git', 'checkout', '--detach', 'FETCH_HEAD', cwd=source, log=log)
     print('Fetching pinned OpenSSL submodule', flush=True)
     run('git', 'submodule', 'update', '--init', '--recursive', '--depth=1', cwd=source, log=log)
-    implementation = (source/'Entitlement/AppIDViewModel.swift').read_text()
+    extra = {}
+    if loginfix:
+        from prepare_gmr_login import prepare, DEPENDENCY
+        from validate_gmr_login import main as validate
+        dependency = source/'LoginStosSign'; run('git', 'init', str(dependency))
+        run('git', 'fetch', '--depth=1', 'https://github.com/no1ce21/StosSign.git', DEPENDENCY, cwd=dependency, log=log)
+        run('git', 'checkout', '--detach', 'FETCH_HEAD', cwd=dependency, log=log)
+        legacy = base/'legacy-auth'; run('git', 'init', str(legacy))
+        run('git', 'fetch', '--depth=1', 'https://github.com/stossy11/StosSign.git', '70a80bdd2b570020e917ec4a6fb79a8cf4ba1100', cwd=legacy, log=log)
+        run('git', 'checkout', '--detach', 'FETCH_HEAD', cwd=legacy, log=log)
+        print('Running offline original/candidate authentication regressions', flush=True)
+        validate(legacy, dependency, base)
+        extra = prepare(source, dependency)
+    implementation = (source/project_name/'AppIDViewModel.swift').read_text()
     if any(token not in implementation for token in ('INCREASED_MEMORY_LIMIT', 'EXTENDED_VIRTUAL_ADDRESSING')):
         raise ValueError('Both capability actions required')
     print('Building unsigned ARM64 iOS 18 helper with locked packages', flush=True)
-    run('xcodebuild', '-project', 'Entitlement.xcodeproj', '-scheme', 'Entitlement', '-configuration', 'Release', '-sdk', 'iphoneos', '-destination', 'generic/platform=iOS', '-derivedDataPath', str(base/'derived'), '-disableAutomaticPackageResolution', '-onlyUsePackageVersionsFromResolvedFile', 'IPHONEOS_DEPLOYMENT_TARGET=18.0', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'DEVELOPMENT_TEAM=', 'INFOPLIST_KEY_CFBundleDisplayName=GetMoreRam Extended', 'build', cwd=source, log=log)
-    app = base/'derived/Build/Products/Release-iphoneos/Entitlement.app'
+    run('xcodebuild', '-project', project_name+'.xcodeproj', '-scheme', project_name, '-configuration', 'Release', '-sdk', 'iphoneos', '-destination', 'generic/platform=iOS', '-derivedDataPath', str(base/'derived'), '-disableAutomaticPackageResolution', '-onlyUsePackageVersionsFromResolvedFile', 'IPHONEOS_DEPLOYMENT_TARGET=18.0', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'DEVELOPMENT_TEAM=', 'PRODUCT_BUNDLE_IDENTIFIER=com.stos.Entitlement', 'MARKETING_VERSION='+('1.0.1' if loginfix else '1.0'), 'CURRENT_PROJECT_VERSION='+('2' if loginfix else '1'), 'INFOPLIST_KEY_CFBundleDisplayName=GetMoreRam Extended', 'build', cwd=source, log=log)
+    app = base/('derived/Build/Products/Release-iphoneos/'+project_name+'.app')
     info = plistlib.loads((app/'Info.plist').read_bytes())
     if info['MinimumOSVersion'] != '18.0': raise ValueError('Wrong deployment target')
     executable = app/info['CFBundleExecutable']
@@ -59,20 +76,22 @@ def main(base):
             raise ValueError('Missing bundled dynamic dependency')
     payload = base/'Payload'; payload.mkdir()
     run('ditto', str(app), str(payload/app.name))
-    ipa = base/'GetMoreRamExtended-ios18-unsigned.ipa'
+    ipa = base/('GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
     run('ditto', '-c', '-k', '--keepParent', str(payload), str(ipa))
     with zipfile.ZipFile(ipa) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
-    report = {'source_repository': URL, 'source_commit': SOURCE, 'bundle_identifier': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'], 'minimum_ios': info['MinimumOSVersion'], 'architecture': arches, 'signed': False, 'prebuilt_signatures_removed': removed, 'apple_credentials_used': False, 'both_capability_actions_present': True, 'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(), 'bytes': ipa.stat().st_size, 'device_login_tested': False, 'capability_grant_tested': False}
+    report = {'source_repository': url, 'source_commit': commit, 'bundle_identifier': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'], 'minimum_ios': info['MinimumOSVersion'], 'architecture': arches, 'signed': False, 'prebuilt_signatures_removed': removed, 'apple_credentials_used': False, 'both_capability_actions_present': True, 'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(), 'bytes': ipa.stat().st_size, 'device_login_tested': False, 'capability_grant_tested': False, **extra}
     ipa.with_suffix('.verification.json').write_text(json.dumps(report, indent=2))
     print('Unsigned helper built and package checks passed', flush=True)
 
 def publish(base):
     from private_io import assert_private, gh, DATA_REPOSITORY
     assert_private(); base = pathlib.Path(base)
-    tag = 'getmoreram-extended-' + os.environ['GITHUB_RUN_ID']
-    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'GetMoreRamExtended unsigned iOS 18 build', '--notes', 'Build of Loganbogan9/GetMoreRamExtended at a176a5c0271af8f462170065132021fb683b1706. Unsigned ARM64, minimum iOS 18. No Apple credentials used. Device login and capability grants are not verified.', '--prerelease')
-    gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, base/'GetMoreRamExtended-ios18-unsigned.ipa', base/'GetMoreRamExtended-ios18-unsigned.verification.json', base/'build.log', base/'linked-libraries.txt')
+    loginfix = os.environ.get('GMR_LOGIN_FIX') == '1'
+    tag = ('getmoreram-loginfix-' if loginfix else 'getmoreram-extended-') + os.environ['GITHUB_RUN_ID']
+    ipa = base/('GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
+    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'GetMoreRamExtended unsigned iOS 18 build', '--notes', 'Unsigned ARM64 helper, minimum iOS 18. Source provenance and offline checks are recorded in the verification report. No Apple credentials used. Device login and capability grants are not verified.', '--prerelease')
+    gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, ipa, ipa.with_suffix('.verification.json'), base/'build.log', base/'linked-libraries.txt')
     print('Helper package and build evidence saved privately', flush=True)
 
 if __name__ == '__main__':
