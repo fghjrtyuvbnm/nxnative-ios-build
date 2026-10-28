@@ -20,6 +20,7 @@ def main(base):
     loginfix = os.environ.get('GMR_LOGIN_FIX') == '1'
     serverfix = os.environ.get('GMR_SERVER_FIX') == '1'
     twofactorfix = os.environ.get('GMR_TWOFACTOR_FIX') == '1'
+    gsafix = os.environ.get('GMR_GSA_FIX') == '1'
     commit = '6bd5cf9733900d925370865d60c7db8906e60bab' if loginfix else SOURCE
     url = 'https://github.com/no1ce21/GetMoreRam.git' if loginfix else URL
     project_name = 'GetMoreRam' if loginfix else 'Entitlement'
@@ -51,11 +52,16 @@ def main(base):
             from validate_gmr_twofactor import main as validate_twofactor
             extra.update(twofactor(source, dependency))
             validate_twofactor(dependency, base)
+        if gsafix:
+            from prepare_gmr_gsa import prepare as gsa
+            from validate_gmr_gsa import main as validate_gsa
+            extra.update(gsa(source, dependency))
+            validate_gsa(dependency, base)
     implementation = (source/project_name/'AppIDViewModel.swift').read_text()
     if any(token not in implementation for token in ('INCREASED_MEMORY_LIMIT', 'EXTENDED_VIRTUAL_ADDRESSING')):
         raise ValueError('Both capability actions required')
     print('Building unsigned ARM64 iOS 18 helper with locked packages', flush=True)
-    run('xcodebuild', '-project', project_name+'.xcodeproj', '-scheme', project_name, '-configuration', 'Release', '-sdk', 'iphoneos', '-destination', 'generic/platform=iOS', '-derivedDataPath', str(base/'derived'), '-disableAutomaticPackageResolution', '-onlyUsePackageVersionsFromResolvedFile', 'IPHONEOS_DEPLOYMENT_TARGET=18.0', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'DEVELOPMENT_TEAM=', 'PRODUCT_BUNDLE_IDENTIFIER=com.stos.Entitlement', 'MARKETING_VERSION='+('1.0.3' if twofactorfix else '1.0.2' if serverfix else '1.0.1' if loginfix else '1.0'), 'CURRENT_PROJECT_VERSION='+('4' if twofactorfix else '3' if serverfix else '2' if loginfix else '1'), 'INFOPLIST_KEY_CFBundleDisplayName=GetMoreRam Extended', 'build', cwd=source, log=log)
+    run('xcodebuild', '-project', project_name+'.xcodeproj', '-scheme', project_name, '-configuration', 'Release', '-sdk', 'iphoneos', '-destination', 'generic/platform=iOS', '-derivedDataPath', str(base/'derived'), '-disableAutomaticPackageResolution', '-onlyUsePackageVersionsFromResolvedFile', 'IPHONEOS_DEPLOYMENT_TARGET=18.0', 'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'DEVELOPMENT_TEAM=', 'PRODUCT_BUNDLE_IDENTIFIER=com.stos.Entitlement', 'MARKETING_VERSION='+('1.0.4' if gsafix else '1.0.3' if twofactorfix else '1.0.2' if serverfix else '1.0.1' if loginfix else '1.0'), 'CURRENT_PROJECT_VERSION='+('5' if gsafix else '4' if twofactorfix else '3' if serverfix else '2' if loginfix else '1'), 'INFOPLIST_KEY_CFBundleDisplayName=GetMoreRam Extended', 'build', cwd=source, log=log)
     app = base/('derived/Build/Products/Release-iphoneos/'+project_name+'.app')
     info = plistlib.loads((app/'Info.plist').read_bytes())
     if info['MinimumOSVersion'] != '18.0': raise ValueError('Wrong deployment target')
@@ -88,7 +94,7 @@ def main(base):
             raise ValueError('Missing bundled dynamic dependency')
     payload = base/'Payload'; payload.mkdir()
     run('ditto', str(app), str(payload/app.name))
-    ipa = base/('GetMoreRamExtended-ios18-twofactor-unsigned.ipa' if twofactorfix else 'GetMoreRamExtended-ios18-serverfix-unsigned.ipa' if serverfix else 'GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
+    ipa = base/('GetMoreRamExtended-ios18-gsa-unsigned.ipa' if gsafix else 'GetMoreRamExtended-ios18-twofactor-unsigned.ipa' if twofactorfix else 'GetMoreRamExtended-ios18-serverfix-unsigned.ipa' if serverfix else 'GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
     run('ditto', '-c', '-k', '--keepParent', str(payload), str(ipa))
     with zipfile.ZipFile(ipa) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
@@ -102,8 +108,9 @@ def publish(base):
     loginfix = os.environ.get('GMR_LOGIN_FIX') == '1'
     serverfix = os.environ.get('GMR_SERVER_FIX') == '1'
     twofactorfix = os.environ.get('GMR_TWOFACTOR_FIX') == '1'
-    tag = ('getmoreram-twofactor-' if twofactorfix else 'getmoreram-serverfix-' if serverfix else 'getmoreram-loginfix-' if loginfix else 'getmoreram-extended-') + os.environ['GITHUB_RUN_ID']
-    ipa = base/('GetMoreRamExtended-ios18-twofactor-unsigned.ipa' if twofactorfix else 'GetMoreRamExtended-ios18-serverfix-unsigned.ipa' if serverfix else 'GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
+    gsafix = os.environ.get('GMR_GSA_FIX') == '1'
+    tag = ('getmoreram-gsa-' if gsafix else 'getmoreram-twofactor-' if twofactorfix else 'getmoreram-serverfix-' if serverfix else 'getmoreram-loginfix-' if loginfix else 'getmoreram-extended-') + os.environ['GITHUB_RUN_ID']
+    ipa = base/('GetMoreRamExtended-ios18-gsa-unsigned.ipa' if gsafix else 'GetMoreRamExtended-ios18-twofactor-unsigned.ipa' if twofactorfix else 'GetMoreRamExtended-ios18-serverfix-unsigned.ipa' if serverfix else 'GetMoreRamExtended-ios18-loginfix-unsigned.ipa' if loginfix else 'GetMoreRamExtended-ios18-unsigned.ipa')
     gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'GetMoreRamExtended unsigned iOS 18 build', '--notes', 'Unsigned ARM64 helper, minimum iOS 18. Source provenance and offline checks are recorded in the verification report. No Apple credentials used. Device login and capability grants are not verified.', '--prerelease')
     gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, ipa, ipa.with_suffix('.verification.json'), base/'build.log', base/'linked-libraries.txt')
     print('Helper package and build evidence saved privately', flush=True)
