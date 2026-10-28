@@ -1,0 +1,18 @@
+name: Validate iOS 18 graphics compatibility
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+jobs:
+  validate:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Reproduce the original missing-Metal-4 failure
+        run: python -u scripts/ios18_baseline.py "$RUNNER_TEMP/nxnative"
