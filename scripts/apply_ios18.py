@@ -11,6 +11,11 @@ def apply(repo):
     if subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()!=SOURCE:raise ValueError('Unexpected source revision')
     source=repo/'dm/gfx/nvn/nvn_mtl.m';text=source.read_text(encoding='utf-8')
     shutil.copyfile(pathlib.Path(__file__).resolve().parents[1]/'runtime/ios18_metal.h',source.parent/'ios18_metal.h')
+    project=repo/'dm/ios/project.yml';config=project.read_text()
+    if 'iOS: "26.0"' in config:config=once(config,'iOS: "26.0"','iOS: "18.0"')
+    elif 'iOS: "18.0"' not in config:raise ValueError('Unexpected deployment target')
+    config=config.replace('-mcpu=apple-a18','-mcpu=apple-a17').replace('# Graphics replay uses Metal 4 (MTL4CommandQueue etc., from iOS 26)','# Classic Metal compatibility target')
+    project.write_text(config,encoding='utf-8',newline='\n')
     if '#include "ios18_metal.h"' in text:return
     text=once(text,'#pragma clang attribute push(', '#include "ios18_metal.h"\n#pragma clang attribute push(')
     text=once(text,'g_dev = MTLCreateSystemDefaultDevice();','g_dev = dm18_device();')
@@ -28,8 +33,5 @@ def apply(repo):
     text=text.replace('[dr presentAfterMinimumDuration:period];','(void)period;').replace('[dr present];','(void)dr;')
     text=once(text,'return (__bridge void *)g_dev;','return (__bridge void *)dm18_native(g_dev);')
     source.write_text(text,encoding='utf-8',newline='\n')
-    project=repo/'dm/ios/project.yml';text=project.read_text()
-    text=once(text,'iOS: "26.0"','iOS: "18.0"').replace('-mcpu=apple-a18','-mcpu=apple-a17')
-    project.write_text(text,encoding='utf-8',newline='\n')
 
 if __name__=='__main__':apply(sys.argv[1])

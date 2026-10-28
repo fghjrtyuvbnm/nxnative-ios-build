@@ -178,12 +178,15 @@
 - (void)dispatchThreadgroups:(MTLSize)n threadsPerThreadgroup:(MTLSize)t { [self prepareDispatch]; [compute dispatchThreadgroups:n threadsPerThreadgroup:t]; }
 - (void)dispatchThreadgroupsWithIndirectBuffer:(uint64_t)address threadsPerThreadgroup:(MTLSize)t { NSUInteger off; id<MTLBuffer> b=[registry buffer:address offset:&off]; [self prepareDispatch]; [compute dispatchThreadgroupsWithIndirectBuffer:b indirectBufferOffset:off threadsPerThreadgroup:t]; }
 - (void)barrier {
-    if (render) [render memoryBarrierWithScope:MTLBarrierScopeBuffers|MTLBarrierScopeTextures afterStages:MTLRenderStageVertex|MTLRenderStageFragment beforeStages:MTLRenderStageVertex|MTLRenderStageFragment];
+    if (render) [NSException raise:NSInternalInconsistencyException format:@"An intra-render barrier needs an explicit pass split on classic tiled GPUs"];
     else if (compute) [compute memoryBarrierWithScope:MTLBarrierScopeBuffers|MTLBarrierScopeTextures];
     // Classic blit encoders preserve copy order; tracked resources order encoder boundaries.
 }
-- (void)barrierAfterQueueStages:(MTLStages)a beforeStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
-- (void)barrierAfterStages:(MTLStages)a beforeQueueStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
+// These two forms are encoder-boundary dependencies, not in-pass barriers.
+// Classic tracked resources and explicit indirect-use declarations provide them.
+// Apple tiled GPUs do not support the classic render memoryBarrierWithScope call.
+- (void)barrierAfterQueueStages:(MTLStages)a beforeStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; if (!render) [self barrier]; }
+- (void)barrierAfterStages:(MTLStages)a beforeQueueStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; if (!render) [self barrier]; }
 - (void)barrierAfterEncoderStages:(MTLStages)a beforeEncoderStages:(MTLStages)b visibilityOptions:(NSUInteger)v { (void)a;(void)b;(void)v; [self barrier]; }
 - (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g afterStage:(MTLRenderStages)stage intoHeap:(id)heap atIndex:(NSUInteger)index { (void)g;(void)stage;(void)heap;(void)index;[NSException raise:NSInternalInconsistencyException format:@"Metal 4 counter heaps are unavailable on the classic backend"]; }
 - (void)writeTimestampWithGranularity:(MTL4TimestampGranularity)g intoHeap:(id)heap atIndex:(NSUInteger)index { (void)g;(void)heap;(void)index;[NSException raise:NSInternalInconsistencyException format:@"Metal 4 counter heaps are unavailable on the classic backend"]; }
