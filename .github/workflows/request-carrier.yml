@@ -1,0 +1,19 @@
+name: Prepare authorized private ad-hoc memory request carrier
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  carrier:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check request validation
+        run: python3 tests/test_request_carrier.py
+      - name: Preserve code and resources, embed only explicit memory requests
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+        run: python3 -u scripts/request_carrier.py "$RUNNER_TEMP/private-carrier"
