@@ -36,6 +36,12 @@ def prepare(source, dependency):
             })
             }''')
     login.write_text(app_text)
+    helper = pathlib.Path(source)/'GetMoreRam/AnisetteDataHelper.swift'; helper_text = helper.read_text()
+    helper_text = replace_once(helper_text, '_ = try GMRServer.clientInfo(data, response: response as? HTTPURLResponse)', 'let (client, agent) = try GMRServer.clientInfo(data, response: response as? HTTPURLResponse)\n        let selected = GMRGSAClient.identity(client, agent: agent)')
+    helper_text = replace_once(helper_text, 'return "v3 metadata is valid. This check does not test Apple sign-in."', 'return "v3 metadata is valid. GSA profile: \\(selected.name). This check does not test Apple sign-in."')
+    helper.write_text(helper_text)
+    server = pathlib.Path(source)/'GetMoreRam/GMRServer.swift'
+    server.write_text(server.read_text().replace('jkcoxson (Windows ADI)', 'jkcoxson (ani)'))
     # Apply the GSA policy only to GsService2 SRP/token requests. Trusted-device,
     # SMS and provider provisioning retain their independent endpoint policies.
     return {'gsa_identity_separate_from_provisioning': True, 'gsa_provider_aware_identity_selection': True, 'gsa_session_per_request': True, 'automatic_authentication_retries': 0, 'gsa_application_headers_aligned': True, 'first_and_post_2fa_stage_labels': True}
