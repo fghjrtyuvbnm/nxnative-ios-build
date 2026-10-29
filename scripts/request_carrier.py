@@ -1,13 +1,13 @@
 """Create an explicitly authorized ad-hoc entitlement request carrier, not a provisioned app."""
 import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile
 
-KEYS = {'com.apple.developer.kernel.increased-memory-limit', 'com.apple.developer.kernel.extended-virtual-addressing'}
+KEYS = {'com.apple.developer.kernel.increased-memory-limit'}
 SOURCE_SHA = '81e29cf34568b3a8752e42ac16b47d459de3d853b8dd8b311f4de0efaa12c5e9'
 NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-vm-audit-unsigned.ipa'
 
 def validate_requests(value):
     if set(value) != KEYS or any(value[k] is not True for k in KEYS):
-        raise ValueError('Exactly two Boolean memory requests required')
+        raise ValueError('Exactly one Boolean Increased Memory Limit request required')
 
 def digest(data): return hashlib.sha256(data).hexdigest()
 
@@ -65,7 +65,7 @@ def main(base):
     if before != sections(binary.read_bytes()): raise ValueError('Executable section bytes changed')
     for name, sha in files.items():
         if digest((app / name).read_bytes()) != sha: raise ValueError('Original resource changed')
-    out = base / NAME.replace('-unsigned', '-adhoc-request-carrier')
+    out = base / NAME.replace('-unsigned', '-increased-memory-only-adhoc-request-carrier')
     subprocess.run(['ditto', '-c', '-k', '--keepParent', str(unpack / 'Payload'), str(out)], check=True, capture_output=True)
     with zipfile.ZipFile(out) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
@@ -75,7 +75,7 @@ def main(base):
               'native_codesign_verification': True, 'gameplay_verified': False}
     check = out.with_suffix('.verification.json'); check.write_text(json.dumps(report, indent=2))
     assert_private(); tag = 'ios18-request-carrier-' + os.environ['GITHUB_RUN_ID']
-    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 ad-hoc memory request carrier', '--notes', 'Not Apple provisioned or directly installable. Requires final signing with a profile that permits both memory capabilities. Original unsigned IPA remains available.', '--prerelease')
+    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 Increased Memory Limit only request carrier', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
     gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, out, check)
     print('Verified ad-hoc request carrier published privately; no profile permissions granted.', flush=True)
 
