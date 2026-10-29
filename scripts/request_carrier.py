@@ -2,8 +2,8 @@
 import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile, os, time
 
 KEYS = {'com.apple.developer.kernel.increased-memory-limit'}
-SOURCE_SHA = '81e29cf34568b3a8752e42ac16b47d459de3d853b8dd8b311f4de0efaa12c5e9'
-NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-vm-audit-unsigned.ipa'
+SOURCE_SHA = '3ea0a92e40c58eece0a371c42c809800ef848fbe316ab9eaaa266e93a86b45b5'
+NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-startup-memory-check-unsigned.ipa'
 STAGE = 'initialization'
 
 def stage(name):
@@ -26,7 +26,7 @@ def native_command(args, base):
 
 def download_original(base):
     from private_io import gh, DATA_REPOSITORY
-    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-40649605564?refresh={time.time_ns()}').stdout)
+    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-40829246457?refresh={time.time_ns()}').stdout)
     matches = [a for a in release['assets'] if a['name'] == NAME]
     if len(matches) != 1: raise ValueError('Exactly one original asset required')
     asset = matches[0]
@@ -91,7 +91,8 @@ def main(base):
     if len(apps) != 1: raise ValueError('One app required')
     app = apps[0]; info = plistlib.loads((app / 'Info.plist').read_bytes())
     binary = app / info['CFBundleExecutable']
-    if info['CFBundleVersion'] != '1.0.7': raise ValueError('Source version differs')
+    if info['CFBundleVersion'] != '1.0.8': raise ValueError('Source version differs')
+    if info.get('DMStartupMemoryCheck') is not True: raise ValueError('Startup memory check is missing')
     if (app / 'embedded.mobileprovision').exists(): raise ValueError('Unexpected provisioning')
     before = sections(binary.read_bytes())
     files = {p.relative_to(app).as_posix(): digest(p.read_bytes()) for p in app.rglob('*') if p.is_file() and p != binary}
@@ -114,13 +115,13 @@ def main(base):
     with zipfile.ZipFile(out) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
     report = {'kind': 'adhoc-request-carrier', 'source_sha256': SOURCE_SHA, 'sha256': digest(out.read_bytes()), 'bytes': out.stat().st_size,
-              'bundle_build': '1.0.7', 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
+              'bundle_build': '1.0.8', 'startup_memory_check': True, 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
               'profile_permissions_granted': False, 'executable_sections_unchanged': True, 'original_resources_unchanged': True,
               'native_codesign_verification': True, 'gameplay_verified': False}
     check = out.with_suffix('.verification.json'); check.write_text(json.dumps(report, indent=2))
     stage('private-publication')
     assert_private(); tag = 'ios18-request-carrier-' + os.environ['GITHUB_RUN_ID']
-    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 Increased Memory Limit only request carrier', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
+    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 startup memory check with Increased Memory Limit only', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
     gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, out, check)
     print('Verified ad-hoc request carrier published privately; no profile permissions granted.', flush=True)
 
