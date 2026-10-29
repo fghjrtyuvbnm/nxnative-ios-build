@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 public enum GMRCapabilityResponse {
     static let emptyMarker = "_gmrEmptyUpdateResponse"
@@ -36,7 +37,7 @@ public enum GMRCapabilityResponse {
     public static func object(_ data: Data, response: URLResponse?) throws -> [String: Any] {
         let stage = "Apple capability update"
         let http = response as? HTTPURLResponse
-        if http?.statusCode == 204 && data.isEmpty { return [emptyMarker: true] }
+        if http?.statusCode == 204 && data.isEmpty { return [emptyMarker: true, "_gmrHTTPStatus": 204] }
         let context = GMRAuthResponse.context(data, response: response, stage: stage)
         let parsed = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         if let errors = parsed?["errors"] as? [[String: Any]], !errors.isEmpty {
@@ -55,11 +56,41 @@ public enum GMRCapabilityResponse {
             throw GMRAuthResponseError(context + "; " + codes + ". No server detail or identifiers logged.")
         }
         try GMRAuthResponse.requireHTTP(data, response: response, stage: stage)
-        guard let parsed else {
+        guard var parsed else {
             throw GMRAuthResponseError(context + ". Expected a JSON object; no response body logged.")
         }
         try GMRAccountResponse.requireSuccess(parsed, stage: stage)
+        parsed["_gmrHTTPStatus"] = http?.statusCode ?? 0
         return parsed
+    }
+
+    public static func receipt(_ value: [String: Any]) -> String {
+        let status = value["_gmrHTTPStatus"] as? Int ?? 0
+        let prefix = "Update response: HTTP " + String(status) + ". "
+        guard let resource = value["data"] as? [String: Any] else {
+            return prefix + "No resource details returned. This response does not verify installed permissions."
+        }
+        let relationships = resource["relationships"] as? [String: Any]
+        let relationship = relationships?["bundleIdCapabilities"] as? [String: Any]
+        guard let entries = relationship?["data"] as? [[String: Any]] else {
+            return prefix + "No inline capability details returned. This response does not verify installed permissions."
+        }
+        // Only accept explicit inline state and the two public capability names.
+        // Link-only IDs, unknown resources, settings and arbitrary text are omitted.
+        var details: [String] = []
+        for entry in entries {
+            guard entry["type"] as? String == "bundleIdCapabilities",
+                  let attrs = entry["attributes"] as? [String: Any],
+                  let raw = attrs["enabled"] as? NSNumber,
+                  CFGetTypeID(raw) == CFBooleanGetTypeID(),
+                  let rels = entry["relationships"] as? [String: Any],
+                  let cap = rels["capability"] as? [String: Any],
+                  let capData = cap["data"] as? [String: Any],
+                  capData["type"] as? String == "capabilities",
+                  let name = capData["id"] as? String, memoryNames.contains(name) else { continue }
+            details.append(name + "=" + (raw.boolValue ? "enabled" : "disabled"))
+        }
+        return prefix + (details.isEmpty ? "No explicit inline memory state returned. " : "Inline response state: " + details.prefix(4).joined(separator: "; ") + ". ") + "This response does not verify installed permissions."
     }
 
     public static func requireUpdateResource(_ value: [String: Any]) throws {

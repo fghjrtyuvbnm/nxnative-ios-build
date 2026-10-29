@@ -61,6 +61,9 @@ public enum GMRMemoryCapabilities {
         let after: AppID
         do { after = try await read() }
         catch {
+            if updateError == nil {
+                return (before, requested + "Update request accepted. Warning: App ID list readback unavailable: " + safeError(error) + ". Permission is not confirmed. Do not repeat the update solely because listing is unavailable; verify the target's re-signed profile and signature.")
+            }
             let updateStatus = updateError.map(safeError) ?? "Update request completed"
             throw GMRAuthResponseError(requested + updateStatus + ". App ID readback failed: " + safeError(error) + ". Capability state is not confirmed.")
         }
@@ -71,6 +74,9 @@ public enum GMRMemoryCapabilities {
             throw GMRAuthResponseError(requested + "Apple capability readback: other previously enabled features are no longer listed. Do not re-sign until the App ID is reviewed.")
         }
         guard selection.confirmed(after) else {
+            if updateError == nil {
+                return (after, requested + "Update request accepted. Warning: App ID list readback did not confirm the selected permission. " + summary(after) + ". This is inconclusive, not confirmation or rejection. Do not repeat the update solely because listing is inconclusive; verify the target's re-signed profile and signature.")
+            }
             throw GMRAuthResponseError(requested + (updateError.map(safeError) ?? "Apple capability update returned") + ". Readback: " + summary(after))
         }
         var message = requested + (selection == .both ? "Both memory capabilities confirmed on the App ID by readback. " : "Selected memory capability confirmed on the App ID by readback. ") + summary(after) + ". Re-sign the target IPA, then verify its installed profile and signature."

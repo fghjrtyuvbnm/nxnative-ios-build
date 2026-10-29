@@ -30,6 +30,14 @@ static func main() throws {
         }
     }
     try GMRCapabilityResponse.requireUpdateResource(success)
+    let receipt = GMRCapabilityResponse.receipt(success)
+    guard receipt.contains("HTTP 200"), receipt.contains("No inline capability details"), receipt.contains("does not verify installed permissions") else { fatalError("Bare resource acknowledgement treated as permission detail") }
+    let inline: [String: Any] = ["_gmrHTTPStatus": 200, "data": ["relationships": ["bundleIdCapabilities": ["data": [
+        ["type": "bundleIdCapabilities", "id": "PRIVATE_APP_ID", "attributes": ["enabled": true, "PRIVATE_TOKEN": "PRIVATE_TOKEN"], "relationships": ["capability": ["data": ["type": "capabilities", "id": "INCREASED_MEMORY_LIMIT"]]]],
+        ["type": "bundleIdCapabilities", "attributes": ["enabled": 1], "relationships": ["capability": ["data": ["type": "capabilities", "id": "EXTENDED_VIRTUAL_ADDRESSING"]]]]
+    ]]]]]
+    let detail = GMRCapabilityResponse.receipt(inline)
+    guard detail.contains("INCREASED_MEMORY_LIMIT=enabled"), !detail.contains("EXTENDED_VIRTUAL_ADDRESSING=enabled"), !detail.contains("PRIVATE_TOKEN"), !detail.contains("PRIVATE_APP_ID") else { fatalError("Inline response state was invented or private values exposed") }
     let empty = try GMRCapabilityResponse.object(Data(), response: http(204))
     try GMRCapabilityResponse.requireUpdateResource(empty)
     for (data, response) in [(Data(), http(200)), (Data("<html>PRIVATE_TOKEN</html>".utf8), http(503, "text/html"))] {

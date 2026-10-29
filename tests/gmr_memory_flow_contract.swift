@@ -18,10 +18,8 @@ static func main() async throws {
     _ = try await GMRMemoryCapabilities.apply(.both, read: { state }, update: { _ in updates += 1 })
     guard updates == 0 else { fatalError("Already-enabled App ID was mutated") }
     state = app([])
-    do {
-        _ = try await GMRMemoryCapabilities.apply(.both, read: { state }, update: { _ in state = app(["increasedMemoryLimit"]) })
-        fatalError("Partial capability state reported success")
-    } catch { guard error.localizedDescription.contains("Extended Virtual Addressing=not confirmed") else { fatalError("Partial state missing from error") } }
+    let (_, partial) = try await GMRMemoryCapabilities.apply(.both, read: { state }, update: { _ in state = app(["increasedMemoryLimit"]) })
+    guard partial.contains("Warning:"), partial.contains("Extended Virtual Addressing=not confirmed"), !partial.contains("Both memory capabilities confirmed") else { fatalError("Partial capability state misrepresented") }
     state = app([])
     do {
         _ = try await GMRMemoryCapabilities.apply(.both, read: { state }, update: { _ in throw GMRAuthResponseError("Apple capability update: HTTP 403 code=FORBIDDEN_ERROR") })
@@ -36,13 +34,11 @@ static func main() async throws {
         fatalError("Loss of unrelated enabled features was ignored")
     } catch { guard error.localizedDescription.contains("other previously enabled") else { fatalError("Unrelated feature loss not identified") } }
     state = app([]); reads = 0
-    do {
-        _ = try await GMRMemoryCapabilities.apply(.both, read: {
-            reads += 1
-            if reads > 1 { throw NSError(domain: "fixture", code: -1, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_TOKEN"]) }
-            return state
-        }, update: { _ in state = app(both) })
-        fatalError("Unreadable state was reported as confirmed")
-    } catch { guard error.localizedDescription.contains("not confirmed") && !error.localizedDescription.contains("PRIVATE_TOKEN") else { fatalError("Readback failure diagnostics unsafe") } }
+    let (_, unreadable) = try await GMRMemoryCapabilities.apply(.both, read: {
+        reads += 1
+        if reads > 1 { throw NSError(domain: "fixture", code: -1, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_TOKEN"]) }
+        return state
+    }, update: { _ in state = app(both) })
+    guard unreadable.contains("Warning:"), unreadable.contains("not confirmed"), !unreadable.contains("PRIVATE_TOKEN") else { fatalError("Readback failure diagnostics unsafe") }
     print("Memory update/precheck/readback, partial denial, transport ambiguity and unrelated-feature preservation fixtures passed")
 }}

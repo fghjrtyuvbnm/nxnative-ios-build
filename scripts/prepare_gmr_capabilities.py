@@ -8,7 +8,7 @@ def prepare(source, dependency):
     for name in ('GMRCapabilityResponse.swift', 'GMRMemoryCapabilities.swift'):
         shutil.copyfile(kit/'runtime'/name, dependency/'Sources/StosSign_Common'/name)
     model = dependency/'Sources/StosSign_Common/Models/Apple API/AppID.swift'; text = model.read_text()
-    text = replace_once(text, '    public var entitlements: [String]', '    public var entitlements: [String]\n    public var enabledFeatureIdentifiers: [String] = []')
+    text = replace_once(text, '    public var entitlements: [String]', '    public var entitlements: [String]\n    public var enabledFeatureIdentifiers: [String] = []\n    public var capabilityUpdateReceipt: String? = nil')
     text = replace_once(text, 'self.init(name: name, identifier: identifier, bundleIdentifier: bundleIdentifier, expirationDate: expirationDate, features: features)', 'self.init(name: name, identifier: identifier, bundleIdentifier: bundleIdentifier, expirationDate: expirationDate, features: features)\n        self.enabledFeatureIdentifiers = enabledFeatures')
     model.write_text(text)
     api = dependency/'Sources/StosSign_API/AppleAPI.swift'; text = api.read_text()
@@ -27,6 +27,7 @@ def prepare(source, dependency):
     begin = part.index('        print("Server Response:')
     finish = part.index('        return appID', begin)
     part = part[:begin]+'        try GMRCapabilityResponse.requireUpdateResource(response)\n\n'+part[finish:]
+    part = replace_once(part, '        return appID', '        var updated = appID\n        updated.capabilityUpdateReceipt = GMRCapabilityResponse.receipt(response)\n        return updated')
     text = text[:start]+part+text[end:]; api.write_text(text)
     app = source/'GetMoreRam'
     model = app/'AppIDViewModel.swift'; text = model.read_text()
@@ -51,14 +52,16 @@ def prepare(source, dependency):
             isUpdating = false
             if result == "Reading current capability state..." { result = "Capability state was not confirmed. See the error details." }
         }
+        var responseReceipt: String?
         let (verified, message) = try await GMRMemoryCapabilities.apply(selection,
             read: { try await self.readTarget(team: team, session: session) },
             update: { current in
-                _ = try await AppleAPI.shared.updateAppID(current, capabilities: selection.identifiers, team: team, session: session)
+                let response = try await AppleAPI.shared.updateAppID(current, capabilities: selection.identifiers, team: team, session: session)
+                responseReceipt = response.capabilityUpdateReceipt
             }
         )
         appID = verified
-        result = message
+        result = message + (responseReceipt.map { "\\n\\n" + $0 } ?? "")
     }
 
     @MainActor
@@ -95,4 +98,4 @@ def prepare(source, dependency):
                 }
                 .disabled(viewModel.isUpdating)''')
     view.write_text(text)
-    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True, 'both_capabilities_submitted_together': False, 'default_increased_memory_only': True, 'extended_requires_separate_action': True, 'safe_server_reason_classification': True}
+    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True, 'both_capabilities_submitted_together': False, 'default_increased_memory_only': True, 'extended_requires_separate_action': True, 'safe_server_reason_classification': True, 'accepted_but_unconfirmed_is_warning': True, 'safe_update_receipt_separated': True}
