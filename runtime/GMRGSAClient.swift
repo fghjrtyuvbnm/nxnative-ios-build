@@ -40,9 +40,9 @@ public enum GMRGSAClient {
         return GMRGSAIdentity(name: "provider-pair", client: value, agent: selectedAgent.isEmpty ? userAgent : selectedAgent)
     }
 
-    public static func identityRequest(_ input: URLRequest) -> URLRequest {
+    public static func identityRequest(_ input: URLRequest, providerAgent: String? = nil) -> URLRequest {
         var request = input
-        let selected = identity(input.value(forHTTPHeaderField: "X-MMe-Client-Info"), agent: providerUserAgent)
+        let selected = identity(input.value(forHTTPHeaderField: "X-MMe-Client-Info"), agent: providerAgent ?? providerUserAgent)
         request.setValue(selected.client, forHTTPHeaderField: "X-MMe-Client-Info")
         request.setValue(selected.agent, forHTTPHeaderField: "User-Agent")
         request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")

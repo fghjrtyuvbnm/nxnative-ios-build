@@ -19,6 +19,16 @@ static func main() throws {
     }
     let shape = GMRAccountResponse.schema(["teams": "PRIVATE_MARKER", "resultCode": 1], section: "teams")
     guard shape.contains("teams:string"), !shape.contains("PRIVATE_MARKER") else { fatalError("Team diagnostics leaked values") }
+    let serviceCodes: [Any] = [1100, "1100"]
+    for code in serviceCodes {
+        do {
+            _ = try GMRAccountResponse.decodeAccount(["resultCode": code, "developer": ["email": "PRIVATE_EMAIL@example.invalid", "personId": "123456789"]])
+            fatalError("Service rejection was accepted because account data existed")
+        } catch {
+            guard error.localizedDescription.contains("resultCode=1100"), !error.localizedDescription.contains("PRIVATE_EMAIL") else { fatalError("Numeric service result was lost") }
+        }
+    }
+    guard GMRAccountResponse.schema(["resultCode": 1100], section: "developer").contains("resultCode=1100") else { fatalError("Result diagnostic only showed the type") }
     // Multi-step account persistence contract: decoding and Codable round-trip
     // must retain the same public numeric identifier and email.
     let restored = try JSONDecoder().decode(Account.self, from: JSONEncoder().encode(account))

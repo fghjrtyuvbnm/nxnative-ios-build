@@ -4,6 +4,22 @@ import CoreFoundation
 public enum GMRAccountResponse {
     static let fields = ["email", "personId", "dsFirstName", "dsLastName", "firstName", "lastName"]
 
+    static func resultCode(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() { return Int(number.stringValue) }
+        if let text = value as? String { return Int(text) }
+        return nil
+    }
+
+    public static func requireSuccess(_ response: [String: Any], stage: String) throws {
+        guard let raw = response["resultCode"] else { return }
+        guard let code = resultCode(raw) else {
+            throw GMRAuthResponseError(stage + ": invalid resultCode type=" + kind(raw) + ". No response values logged.")
+        }
+        if code != 0 {
+            throw GMRAuthResponseError(stage + ": Apple developer service returned resultCode=" + String(code) + ". No account or token values logged.")
+        }
+    }
+
     static func kind(_ value: Any?) -> String {
         guard let value else { return "missing" }
         if value is NSNull { return "null" }
@@ -18,10 +34,12 @@ public enum GMRAccountResponse {
         // Only allowlisted field names and type labels. No values, keys from
         // arbitrary dictionaries, account identifiers or response bodies.
         let selected = section == "teams" ? "teams" : "developer"
-        return "section=" + selected + ":" + kind(response[selected]) + ", resultCode=" + kind(response["resultCode"])
+        let code = resultCode(response["resultCode"]).map(String.init) ?? kind(response["resultCode"])
+        return "section=" + selected + ":" + kind(response[selected]) + ", resultCode=" + code
     }
 
     public static func decodeAccount(_ response: [String: Any]) throws -> Account {
+        try requireSuccess(response, stage: "Apple account lookup")
         guard let developer = response["developer"] as? [String: Any] else {
             throw GMRAuthResponseError("Apple account lookup schema: " + schema(response, section: "developer") + ". No response values logged.")
         }
