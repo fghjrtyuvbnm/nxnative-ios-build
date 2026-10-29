@@ -21,7 +21,7 @@ struct StartupMemoryView: View {
     }
     private func size(_ bytes: UInt64) -> String { String(format: "%.0f MiB", Double(bytes) / 1048576) }
     var body: some View {
-        Section("Startup memory check") {
+        Section {
             Label(state.message, systemImage: state.status == .present ? "checkmark.shield" : "exclamationmark.triangle")
                 .foregroundStyle(state.status == .present ? Color.green : Color.orange)
             LabeledContent("App signature", value: StartupMemoryState.flag(state.signature))
@@ -31,6 +31,8 @@ struct StartupMemoryView: View {
                 LabeledContent("Estimated process limit now", value: size(budget))
             }
             Button("Check memory again") { refreshSigning(); refreshAllowance() }
+        } header: {
+            Text("Startup memory check")
         } footer: {
             Text("Signing declarations and current system allowance are separate checks. The allowance can change; it does not prove why a limit was granted. No allocation stress test is performed. Extended Virtual Addressing is not requested. You can still choose Play.")
         }
