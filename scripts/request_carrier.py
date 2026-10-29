@@ -11,6 +11,19 @@ def stage(name):
     STAGE = name
     print('Carrier stage: '+name, flush=True)
 
+def native_command(args, base):
+    result = subprocess.run(args, capture_output=True)
+    if result.returncode:
+        # Keep command diagnostics private; no credential or environment dump.
+        from private_io import gh, DATA_REPOSITORY
+        diagnostic = base/'codesign-diagnostic.json'
+        diagnostic.write_text(json.dumps({'stage': STAGE, 'exit_code': result.returncode, 'stderr': result.stderr.decode(errors='replace')}, indent=2))
+        tag = 'request-carrier-diagnostic-'+os.environ['GITHUB_RUN_ID']
+        gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'Private request-carrier signing diagnostic', '--notes', 'Failed build diagnostic only; no installable IPA.', '--prerelease')
+        gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, diagnostic)
+        raise RuntimeError('Native command failed; diagnostic retained privately')
+    return result
+
 def download_original(base):
     from private_io import gh, DATA_REPOSITORY
     release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-40649605564?refresh={time.time_ns()}').stdout)
@@ -77,9 +90,11 @@ def main(base):
     files = {p.relative_to(app).as_posix(): digest(p.read_bytes()) for p in app.rglob('*') if p.is_file() and p != binary}
     binary.chmod(0o755)
     stage('embed-and-verify-single-request')
-    subprocess.run(['codesign', '--force', '--sign', '-', '--entitlements', str(request), '--timestamp=none', str(app)], check=True, capture_output=True)
-    subprocess.run(['codesign', '--verify', '--strict', str(app)], check=True, capture_output=True)
-    actual = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(app)], check=True, capture_output=True).stdout
+    native_command(['codesign', '--force', '--sign', '-', '--entitlements', str(request), '--timestamp=none', str(app)], base)
+    stage('verify-native-signature')
+    native_command(['codesign', '--verify', '--strict', str(app)], base)
+    stage('verify-native-entitlements')
+    actual = native_command(['codesign', '-d', '--entitlements', ':-', str(app)], base).stdout
     validate_requests(plistlib.loads(actual))
     details = subprocess.run(['codesign', '-dvv', str(app)], check=True, capture_output=True).stderr.decode()
     if 'Signature=adhoc' not in details or 'Authority=' in details: raise ValueError('Unexpected signing identity')
