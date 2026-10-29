@@ -13,6 +13,10 @@ def apply(repo):
         text=replace_once(text,'dm_signing_memory_note();','dm_signing_memory_note(); dm_startup_memory_note("app-boot");')
         text=replace_once(text,'dm_memory_note("play-before-preload");','dm_memory_note("play-before-preload"); dm_startup_memory_note("play-before-preload");')
         main.write_text(text,encoding='utf-8',newline='\n')
+    text=main.read_text()
+    if '[classic-lifecycle]' not in text:
+        text=replace_once(text,'dm_startup_memory_note("app-boot");','dm_startup_memory_note("app-boot"); setenv("DM_NVN_WAITS","1",0); fprintf(stderr,"[classic-lifecycle] independent helper queues; bounded weak registry pools; wait ledger enabled\\n");')
+        main.write_text(text,encoding='utf-8',newline='\n')
     launcher=sources/'Launcher.swift';text=launcher.read_text()
     if 'StartupMemoryView()' not in text:
         text=replace_once(text,'                List {','                List {\n                    StartupMemoryView()')

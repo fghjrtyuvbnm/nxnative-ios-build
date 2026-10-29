@@ -103,6 +103,7 @@ def publish_ios18(work):
     if m.get('large_ue_vm'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-vm-allocator-unsigned.ipa'
     if m.get('vm_audit'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-vm-audit-unsigned.ipa'
     if m.get('startup_memory_check'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-startup-memory-check-unsigned.ipa'
+    if m.get('classic_lifecycle_fix'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-metal-lifecycle-unsigned.ipa'
     ipa=out/filename;source.rename(ipa)
     report={k:v for k,v in m.items() if k not in ('parts','resource_only')}
     report.update(launcher_sha256=m['template_sha256'],launcher_bytes=ipa.stat().st_size,zip_crc_verified=True,data_separate=True,physical_usb_runtime_tested=False,gameplay_tested=False)

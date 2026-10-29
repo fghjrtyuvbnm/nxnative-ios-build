@@ -11,4 +11,5 @@ def candidate(text):
             elif text[end]=='}':depth-=1
             end+=1
         text=text[:brace+1]+' @autoreleasepool { '+text[brace+1:end-1]+' } '+text[end-1:]
+    text=text.replace('#pragma once', '#pragma once\n// Bound weak-collection temporaries to the API call, not the long-lived guest worker.\n// Classic helper queues must remain independent of the replay queue.\n#define DM18_LIFECYCLE_REVISION 1', 1)
     return text

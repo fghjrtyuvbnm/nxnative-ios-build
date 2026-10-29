@@ -1,6 +1,7 @@
 """Compile and run synthetic classic-GPU checks, then the current NVN geometry tests."""
 import os,pathlib,shutil,subprocess,sys
 repo=pathlib.Path(sys.argv[1]);kit=pathlib.Path(__file__).resolve().parents[1]
+subprocess.run([sys.executable,kit/'scripts/validate_ios18_lifecycle.py',pathlib.Path(os.environ['RUNNER_TEMP'])/'classic-lifecycle'],check=True)
 from apply_ios18 import apply
 apply(repo)
 from apply_ue_vm import apply as apply_vm

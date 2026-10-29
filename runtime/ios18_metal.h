@@ -3,6 +3,9 @@
 // Resource lookup follows the address-index approach in d2r-mobile's Metal 3 backend.
 // The shader ABI and all game replay logic remain those of the pinned nxnative source.
 #pragma once
+// Bound weak-collection temporaries to the API call, not the long-lived guest worker.
+// Classic helper queues must remain independent of the replay queue.
+#define DM18_LIFECYCLE_REVISION 1
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 #include <pthread.h>
@@ -24,7 +27,7 @@
 @end
 @implementation DM18Registry
 - (instancetype)init { if ((self=[super init])) { _lock=[NSLock new]; _buffers=[NSMapTable strongToStrongObjectsMapTable]; _textures=[NSMapTable strongToWeakObjectsMapTable]; _samplers=[NSMapTable strongToWeakObjectsMapTable]; _resources=[NSHashTable weakObjectsHashTable]; _addresses=[NSMutableArray array]; } return self; }
-- (void)add:(id)object {
+- (void)add:(id)object { @autoreleasepool { 
     if (!object) return;
     [_lock lock];
     if ([object conformsToProtocol:@protocol(MTLBuffer)]) {
@@ -48,8 +51,8 @@
     if ([object conformsToProtocol:@protocol(MTLSamplerState)]) [_samplers setObject:object forKey:@(((id<MTLSamplerState>)object).gpuResourceID._impl)];
     if ([object conformsToProtocol:@protocol(MTLResource)] && ((id<MTLResource>)object).storageMode!=MTLStorageModeMemoryless && ![_resources containsObject:object]) { [_resources addObject:object]; _epoch++; }
     [_lock unlock];
-}
-- (id<MTLBuffer>)buffer:(uint64_t)address offset:(NSUInteger *)offset {
+ } }
+- (id<MTLBuffer>)buffer:(uint64_t)address offset:(NSUInteger *)offset { @autoreleasepool { 
     *offset=0; if (!address) return nil;
     [_lock lock]; NSUInteger lo=0,hi=_addresses.count;
     while (lo<hi) { NSUInteger m=(lo+hi)/2; if (_addresses[m].unsignedLongLongValue<=address) lo=m+1; else hi=m; }
@@ -64,10 +67,10 @@
     [_lock unlock];
     if (!b) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal buffer address"];
     return b;
-}
-- (id)texture:(uint64_t)rid { [_lock lock]; id t=[_textures objectForKey:@(rid)]; [_lock unlock]; if (rid && !t) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal texture ID"]; return t; }
-- (id)sampler:(uint64_t)rid { [_lock lock]; id s=[_samplers objectForKey:@(rid)]; [_lock unlock]; if (rid && !s) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal sampler ID"]; return s; }
-- (NSArray *)resources:(NSUInteger *)epoch { [_lock lock]; *epoch=_epoch; NSArray *a=_resources.allObjects; [_lock unlock]; return a; }
+ } }
+- (id)texture:(uint64_t)rid { @autoreleasepool {  [_lock lock]; id t=[_textures objectForKey:@(rid)]; [_lock unlock]; if (rid && !t) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal texture ID"]; return t;  } }
+- (id)sampler:(uint64_t)rid { @autoreleasepool {  [_lock lock]; id s=[_samplers objectForKey:@(rid)]; [_lock unlock]; if (rid && !s) [NSException raise:NSInternalInconsistencyException format:@"Unregistered Metal sampler ID"]; return s;  } }
+- (NSArray *)resources:(NSUInteger *)epoch { @autoreleasepool {  [_lock lock]; *epoch=_epoch; NSArray *a=_resources.allObjects; [_lock unlock]; return a;  } }
 @end
 
 @protocol DM18Arguments <NSObject>
@@ -282,7 +285,7 @@ static MTLResourceOptions dm18_tracked(MTLResourceOptions o) { return (o&~(MTLRe
 @implementation DM18Device
 - (id)forwardingTargetForSelector:(SEL)s { return self.native; }
 - (BOOL)respondsToSelector:(SEL)s { return [super respondsToSelector:s] || [self.native respondsToSelector:s]; }
-- (id<MTLCommandQueue>)newCommandQueue { return self.queue; }
+- (id<MTLCommandQueue>)newCommandQueue { return [self.native newCommandQueue]; }
 - (id)newCommandBuffer { DM18CommandBuffer *b=[DM18CommandBuffer new]; b.queue=self.queue;b.registry=self.registry;return b; }
 - (id<MTLResidencySet>)newResidencySetWithDescriptor:(MTLResidencySetDescriptor *)d error:(NSError **)error { (void)d;(void)error;return [DM18Residency new]; }
 - (id)newMTL4CommandQueueWithDescriptor:(DM18QueueDescriptor *)d error:(NSError **)error { (void)error;DM18Queue *q=[DM18Queue new];q.native=self.queue;q.feedback=d.feedbackQueue;return q; }

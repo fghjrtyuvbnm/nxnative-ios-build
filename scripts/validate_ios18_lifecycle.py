@@ -5,6 +5,7 @@ from patch_ios18_lifecycle import candidate
 def main(out):
     kit=pathlib.Path(__file__).resolve().parents[1];out=pathlib.Path(out);out.mkdir(parents=True,exist_ok=True)
     baseline=(kit/'tests/fixtures/ios18_metal_before_lifecycle.h').read_text()
+    if (kit/'runtime/ios18_metal.h').read_text()!=candidate(baseline):raise ValueError('Production adapter differs from the tested candidate')
     reports={}
     for label,text in [('baseline',baseline),('candidate',candidate(baseline))]:
         (out/'adapter-under-test.h').write_text(text)
