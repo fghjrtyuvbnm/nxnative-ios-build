@@ -10,6 +10,29 @@ public enum GMRCapabilityResponse {
         return text
     }
 
+    // Recognize fixed phrases only. These are classifications of server wording,
+    // not proof of an account restriction or a reason to change membership.
+    static func reason(_ error: [String: Any]) -> String {
+        let text = ((error["title"] as? String ?? "") + " " + (error["detail"] as? String ?? "")).lowercased()
+        var labels: [String] = []
+        for (phrase, label) in [
+            ("forbidden for security reasons", "generic_security_rejection"),
+            ("api key in use does not allow", "credential_not_allowed"),
+            ("not authorized", "not_authorized"),
+            ("not permitted", "not_permitted"),
+            ("do not have permission", "permission_not_granted"),
+            ("does not have permission", "permission_not_granted"),
+            ("required agreement", "agreement_required"),
+            ("must be enrolled", "enrollment_required"),
+            ("not available for your team", "unavailable_for_team"),
+            ("insufficient privileges", "insufficient_privileges"),
+            ("session has expired", "session_expired")
+        ] where text.contains(phrase) {
+            if !labels.contains(label) { labels.append(label) }
+        }
+        return labels.isEmpty ? "unclassified" : labels.joined(separator: ",")
+    }
+
     public static func object(_ data: Data, response: URLResponse?) throws -> [String: Any] {
         let stage = "Apple capability update"
         let http = response as? HTTPURLResponse
@@ -18,7 +41,7 @@ public enum GMRCapabilityResponse {
         let parsed = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         if let errors = parsed?["errors"] as? [[String: Any]], !errors.isEmpty {
             let codes = errors.prefix(4).map { error -> String in
-                var label = "code=" + safeCode(error["code"])
+                var label = "code=" + safeCode(error["code"]) + ", server_reason=" + reason(error)
                 if let source = error["source"] as? [String: Any], let pointer = source["pointer"] as? String {
                     let allowed = Set(["data", "attributes", "relationships", "bundleIdCapabilities", "capability", "enabled", "settings", "teamId", "seedId", "bundleType", "identifier", "name", "hasExclusiveManagedCapabilities", "type", "id"])
                     label += ", source=/" + pointer.split(separator: "/").prefix(12).map { allowed.contains(String($0)) ? String($0) : "field" }.joined(separator: "/")

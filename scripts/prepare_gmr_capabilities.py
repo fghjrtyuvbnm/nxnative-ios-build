@@ -42,7 +42,7 @@ def prepare(source, dependency):
     }
 
     @MainActor
-    func addIncreasedMemory() async throws {
+    func addIncreasedMemory(_ selection: GMRMemoryCapabilities.Selection = .increased) async throws {
         guard !isUpdating else { return }
         guard let team = DataManager.shared.model.team, let session = DataManager.shared.model.session else { throw "Please Login First" }
         isUpdating = true
@@ -51,10 +51,10 @@ def prepare(source, dependency):
             isUpdating = false
             if result == "Reading current capability state..." { result = "Capability state was not confirmed. See the error details." }
         }
-        let (verified, message) = try await GMRMemoryCapabilities.apply(
+        let (verified, message) = try await GMRMemoryCapabilities.apply(selection,
             read: { try await self.readTarget(team: team, session: session) },
             update: { current in
-                _ = try await AppleAPI.shared.updateAppID(current, capabilities: ["INCREASED_MEMORY_LIMIT", "EXTENDED_VIRTUAL_ADDRESSING"], team: team, session: session)
+                _ = try await AppleAPI.shared.updateAppID(current, capabilities: selection.identifiers, team: team, session: session)
             }
         )
         appID = verified
@@ -74,9 +74,19 @@ def prepare(source, dependency):
 '''+text[end:]
     model.write_text(text)
     view = app/'AppIDView.swift'; text = view.read_text()
-    text = replace_once(text, '                    Text("Add Both Memory Capabilities")\n                }', '''                    Text(viewModel.isUpdating ? "Checking..." : "Add Both Memory Capabilities")
+    text = replace_once(text, '                    Text("Add Both Memory Capabilities")\n                }', '''                    Text(viewModel.isUpdating ? "Checking..." : "Add Increased Memory Limit")
                 }
                 .disabled(viewModel.isUpdating)
+                DisclosureGroup("Paid account options") {
+                    Text("Extended Virtual Addressing is excluded from the default action. Use this separate action only for the paid account path.")
+                    Button("Add Extended Virtual Addressing Only") {
+                        Task {
+                            do { try await viewModel.addIncreasedMemory(.extended) }
+                            catch { errorInfo = error.detailedDescription; errorShow = true }
+                        }
+                    }
+                    .disabled(viewModel.isUpdating)
+                }
                 Button("Check Memory Capabilities") {
                     Task {
                         do { try await viewModel.checkMemoryCapabilities() }
@@ -85,4 +95,4 @@ def prepare(source, dependency):
                 }
                 .disabled(viewModel.isUpdating)''')
     view.write_text(text)
-    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True}
+    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True, 'default_increased_memory_only': True, 'extended_requires_separate_action': True, 'safe_server_reason_classification': True}

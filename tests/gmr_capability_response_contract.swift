@@ -14,6 +14,21 @@ static func main() throws {
         }
     }
     let success = try GMRCapabilityResponse.object(Data("{\"data\":{\"type\":\"bundleIds\"}}".utf8), response: http(200))
+    for (phrase, expected) in [
+        ("This request is forbidden for security reasons", "generic_security_rejection"),
+        ("The API key in use does not allow this request", "credential_not_allowed"),
+        ("Your team does not have permission", "permission_not_granted"),
+        ("A required agreement is missing", "agreement_required"),
+        ("UNKNOWN PRIVATE_TOKEN PRIVATE_APP_ID", "unclassified")
+    ] {
+        let payload: [String: Any] = ["errors": [["code": "FORBIDDEN_ERROR", "detail": phrase + " PRIVATE_TOKEN PRIVATE_APP_ID"]]]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        do { _ = try GMRCapabilityResponse.object(data, response: http(403)); fatalError("403 accepted") }
+        catch {
+            let message = error.localizedDescription
+            guard message.contains("server_reason=" + expected), !message.contains("PRIVATE_TOKEN"), !message.contains("PRIVATE_APP_ID") else { fatalError("Reason classification lost or private values exposed") }
+        }
+    }
     try GMRCapabilityResponse.requireUpdateResource(success)
     let empty = try GMRCapabilityResponse.object(Data(), response: http(204))
     try GMRCapabilityResponse.requireUpdateResource(empty)
