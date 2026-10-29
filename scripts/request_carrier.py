@@ -40,6 +40,11 @@ def validate_requests(value):
     if set(value) != KEYS or any(value[k] is not True for k in KEYS):
         raise ValueError('Exactly one Boolean Increased Memory Limit request required')
 
+def canonical_request(data):
+    value = plistlib.loads(data)
+    validate_requests(value)
+    return plistlib.dumps(value, fmt=plistlib.FMT_XML, sort_keys=True)
+
 def digest(data): return hashlib.sha256(data).hexdigest()
 
 def sections(data):
@@ -72,8 +77,10 @@ def main(base):
     download_original(base)
     stage('verify-original-and-requests')
     if digest(source.read_bytes()) != SOURCE_SHA: raise ValueError('Source IPA differs')
-    request = pathlib.Path(__file__).resolve().parents[1] / 'runtime/MemoryRequirements.entitlements'
-    validate_requests(plistlib.loads(request.read_bytes()))
+    request_source = pathlib.Path(__file__).resolve().parents[1] / 'runtime/MemoryRequirements.entitlements'
+    request = base/'MemoryRequirements.entitlements'
+    # AMFI's XML reader is stricter than Python's; give codesign canonical LF XML.
+    request.write_bytes(canonical_request(request_source.read_bytes()))
     unpack = base / 'unpacked'
     with zipfile.ZipFile(source) as z:
         for n in z.namelist():
