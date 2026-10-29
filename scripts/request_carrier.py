@@ -1,9 +1,27 @@
 """Create an explicitly authorized ad-hoc entitlement request carrier, not a provisioned app."""
-import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile
+import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile, os, time
 
 KEYS = {'com.apple.developer.kernel.increased-memory-limit'}
 SOURCE_SHA = '81e29cf34568b3a8752e42ac16b47d459de3d853b8dd8b311f4de0efaa12c5e9'
 NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-vm-audit-unsigned.ipa'
+STAGE = 'initialization'
+
+def stage(name):
+    global STAGE
+    STAGE = name
+    print('Carrier stage: '+name, flush=True)
+
+def download_original(base):
+    from private_io import gh, DATA_REPOSITORY
+    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-40649605564?refresh={time.time_ns()}').stdout)
+    matches = [a for a in release['assets'] if a['name'] == NAME]
+    if len(matches) != 1: raise ValueError('Exactly one original asset required')
+    asset = matches[0]
+    env = dict(os.environ)
+    if env.get('PRIVATE_DATA_TOKEN'): env['GH_TOKEN'] = env['PRIVATE_DATA_TOKEN']
+    with (base/NAME).open('wb') as output:
+        result = subprocess.run(['gh', 'api', f'repos/{DATA_REPOSITORY}/releases/assets/{asset["id"]}?refresh={time.time_ns()}', '-H', 'Accept: application/octet-stream'], env=env, stdout=output, stderr=subprocess.PIPE, timeout=180)
+    if result.returncode or (base/NAME).stat().st_size != asset['size']: raise ValueError('Original asset download incomplete')
 
 def validate_requests(value):
     if set(value) != KEYS or any(value[k] is not True for k in KEYS):
@@ -33,11 +51,13 @@ def sections(data):
 
 def main(base):
     from private_io import assert_private, gh, DATA_REPOSITORY
-    import os
+    stage('private-source-check')
     assert_private()
     base = pathlib.Path(base); base.mkdir(parents=True, exist_ok=False)
     source = base / NAME
-    gh('release', 'download', 'ios18-launcher-40649605564', '--repo', DATA_REPOSITORY, '--pattern', NAME, '--dir', base)
+    stage('download-original')
+    download_original(base)
+    stage('verify-original-and-requests')
     if digest(source.read_bytes()) != SOURCE_SHA: raise ValueError('Source IPA differs')
     request = pathlib.Path(__file__).resolve().parents[1] / 'runtime/MemoryRequirements.entitlements'
     validate_requests(plistlib.loads(request.read_bytes()))
@@ -56,6 +76,7 @@ def main(base):
     before = sections(binary.read_bytes())
     files = {p.relative_to(app).as_posix(): digest(p.read_bytes()) for p in app.rglob('*') if p.is_file() and p != binary}
     binary.chmod(0o755)
+    stage('embed-and-verify-single-request')
     subprocess.run(['codesign', '--force', '--sign', '-', '--entitlements', str(request), '--timestamp=none', str(app)], check=True, capture_output=True)
     subprocess.run(['codesign', '--verify', '--strict', str(app)], check=True, capture_output=True)
     actual = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(app)], check=True, capture_output=True).stdout
@@ -66,6 +87,7 @@ def main(base):
     for name, sha in files.items():
         if digest((app / name).read_bytes()) != sha: raise ValueError('Original resource changed')
     out = base / NAME.replace('-unsigned', '-increased-memory-only-adhoc-request-carrier')
+    stage('pack-and-verify-resources')
     subprocess.run(['ditto', '-c', '-k', '--keepParent', str(unpack / 'Payload'), str(out)], check=True, capture_output=True)
     with zipfile.ZipFile(out) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
@@ -74,6 +96,7 @@ def main(base):
               'profile_permissions_granted': False, 'executable_sections_unchanged': True, 'original_resources_unchanged': True,
               'native_codesign_verification': True, 'gameplay_verified': False}
     check = out.with_suffix('.verification.json'); check.write_text(json.dumps(report, indent=2))
+    stage('private-publication')
     assert_private(); tag = 'ios18-request-carrier-' + os.environ['GITHUB_RUN_ID']
     gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 Increased Memory Limit only request carrier', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
     gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, out, check)
@@ -81,6 +104,6 @@ def main(base):
 
 if __name__ == '__main__':
     try: main(*sys.argv[1:])
-    except Exception:
-        print('Carrier preparation failed; no unverified output should be used.', flush=True)
+    except Exception as error:
+        print('Carrier preparation failed at '+STAGE+' ('+type(error).__name__+'); no raw diagnostics or private URLs logged.', flush=True)
         raise SystemExit(1)
