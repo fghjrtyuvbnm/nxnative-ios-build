@@ -1,0 +1,48 @@
+import Foundation
+
+public enum GMRCapabilityResponse {
+    static let emptyMarker = "_gmrEmptyUpdateResponse"
+    static let memoryNames = ["INCREASED_MEMORY_LIMIT", "EXTENDED_VIRTUAL_ADDRESSING"]
+
+    static func safeCode(_ value: Any?) -> String {
+        guard let text = value as? String, !text.isEmpty, text.utf8.count <= 100,
+              text.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || $0 == 95 || $0 == 46 || $0 == 45 }) else { return "unavailable" }
+        return text
+    }
+
+    public static func object(_ data: Data, response: URLResponse?) throws -> [String: Any] {
+        let stage = "Apple capability update"
+        let http = response as? HTTPURLResponse
+        if http?.statusCode == 204 && data.isEmpty { return [emptyMarker: true] }
+        let context = GMRAuthResponse.context(data, response: response, stage: stage)
+        let parsed = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if let errors = parsed?["errors"] as? [[String: Any]], !errors.isEmpty {
+            let codes = errors.prefix(4).map { error -> String in
+                var label = "code=" + safeCode(error["code"])
+                if let source = error["source"] as? [String: Any], let pointer = source["pointer"] as? String {
+                    let allowed = Set(["data", "attributes", "relationships", "bundleIdCapabilities", "capability", "enabled", "settings", "teamId", "seedId", "bundleType", "identifier", "name", "hasExclusiveManagedCapabilities", "type", "id"])
+                    label += ", source=/" + pointer.split(separator: "/").prefix(12).map { allowed.contains(String($0)) ? String($0) : "field" }.joined(separator: "/")
+                }
+                // Report only the two public capability names, never arbitrary
+                // server detail/title/source strings or resource identifiers.
+                let detail = error["detail"] as? String ?? ""
+                for name in memoryNames where detail.contains(name) { label += ", capability=" + name }
+                return label
+            }.joined(separator: "; ")
+            throw GMRAuthResponseError(context + "; " + codes + ". No server detail or identifiers logged.")
+        }
+        try GMRAuthResponse.requireHTTP(data, response: response, stage: stage)
+        guard let parsed else {
+            throw GMRAuthResponseError(context + ". Expected a JSON object; no response body logged.")
+        }
+        try GMRAccountResponse.requireSuccess(parsed, stage: stage)
+        return parsed
+    }
+
+    public static func requireUpdateResource(_ value: [String: Any]) throws {
+        if value[emptyMarker] as? Bool == true { return }
+        guard value["data"] is [String: Any] else {
+            throw GMRAuthResponseError("Apple capability update schema: resource data missing. State must be checked by readback.")
+        }
+    }
+}

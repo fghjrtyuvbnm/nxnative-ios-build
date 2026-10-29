@@ -101,3 +101,7 @@ Synthetic native fixtures cover signature/profile layer differences, absent/trun
 `actionlint .github/workflows/resume.yml .github/workflows/ui-tests.yml .github/workflows/launcher-only.yml .github/workflows/publish-verified.yml .github/workflows/ios18-build.yml .github/workflows/ios18-validation.yml`
 
 The private-destination regression first failed against the previous repository-relative transfer code, then passed after pinning the destination. The directory-scope regression likewise reproduced an original-granted-URL lifetime bug before its fix. Other new scaffold import errors are not claimed as behavioral RED evidence.
+
+## Helper capability verification (1.0.8)
+
+The helper preserves capability-update HTTP status and structured error codes without logging raw server bodies or identifiers. A read-only Check Memory Capabilities action refreshes the selected App ID. Add Both Memory Capabilities checks before updating and reads the state again afterward, reporting partial enablement and loss of unrelated enabled feature identifiers. A transport acknowledgement alone is never confirmation. This checks App ID configuration only: provisioning and the installed target signature still require verification after re-signing. The update endpoint and payload are unchanged. Synthetic response and multi-step state-transition fixtures run before the unsigned iOS 18 build; they do not test live Apple grants.
