@@ -95,4 +95,4 @@ def prepare(source, dependency):
                 }
                 .disabled(viewModel.isUpdating)''')
     view.write_text(text)
-    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True, 'default_increased_memory_only': True, 'extended_requires_separate_action': True, 'safe_server_reason_classification': True}
+    return {'capability_http_and_json_errors_preserved': True, 'memory_capability_readback_required': True, 'unrelated_enabled_feature_readback_checked': True, 'both_capabilities_submitted_together': False, 'default_increased_memory_only': True, 'extended_requires_separate_action': True, 'safe_server_reason_classification': True}
