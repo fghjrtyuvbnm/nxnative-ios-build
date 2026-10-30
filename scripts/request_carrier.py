@@ -2,8 +2,8 @@
 import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile, os, time
 
 KEYS = {'com.apple.developer.kernel.increased-memory-limit'}
-SOURCE_SHA = 'be0bb9d07a8cb9729c75bf13537be4892046ebeace92b7b2e296d2bf37933f27'
-NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-refreshed-data-unsigned.ipa'
+SOURCE_SHA = 'eb14e210aaea15fa2f8fa897edf8f1b5cda2d97ce079ef010c5c2cbfa52eb6c7'
+NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-iPadOS27-native-metal4-unsigned.ipa'
 STAGE = 'initialization'
 
 def stage(name):
@@ -26,14 +26,14 @@ def native_command(args, base):
 
 def download_original(base):
     from private_io import gh, DATA_REPOSITORY
-    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-41003156138?refresh={time.time_ns()}').stdout)
+    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/native-metal4-launcher-41015218529?refresh={time.time_ns()}').stdout)
     matches = [a for a in release['assets'] if a['name'] == NAME]
     if len(matches) != 1: raise ValueError('Exactly one original asset required')
     asset = matches[0]
     env = dict(os.environ)
     if env.get('PRIVATE_DATA_TOKEN'): env['GH_TOKEN'] = env['PRIVATE_DATA_TOKEN']
     with (base/NAME).open('wb') as output:
-        result = subprocess.run(['gh', 'api', f'repos/{DATA_REPOSITORY}/releases/assets/{asset["id"]}?refresh={time.time_ns()}', '-H', 'Accept: application/octet-stream'], env=env, stdout=output, stderr=subprocess.PIPE, timeout=180)
+        result = subprocess.run(['gh', 'api', f'repos/{DATA_REPOSITORY}/releases/assets/{asset["id"]}?refresh={time.time_ns()}', '--allow-escape-sequences', '-H', 'Accept: application/octet-stream'], env=env, stdout=output, stderr=subprocess.PIPE, timeout=180)
     if result.returncode or (base/NAME).stat().st_size != asset['size']: raise ValueError('Original asset download incomplete')
 
 def validate_requests(value):
@@ -91,9 +91,9 @@ def main(base):
     if len(apps) != 1: raise ValueError('One app required')
     app = apps[0]; info = plistlib.loads((app / 'Info.plist').read_bytes())
     binary = app / info['CFBundleExecutable']
-    if info['CFBundleVersion'] != '1.0.10': raise ValueError('Source version differs')
+    if info['CFBundleVersion'] != '1.1.0': raise ValueError('Source version differs')
     if info.get('DMShaderFactsRefresh') is not True: raise ValueError('Refreshed shader identity is missing')
-    if info.get('DMClassicLifecycleFix') is not True: raise ValueError('Lifecycle fix is missing')
+    if info.get('DMGraphicsCompatibility') != 'native-metal4' or info.get('MinimumOSVersion') != '26.0': raise ValueError('Native Metal 4 source required')
     if info.get('DMStartupMemoryCheck') is not True: raise ValueError('Startup memory check is missing')
     if (app / 'embedded.mobileprovision').exists(): raise ValueError('Unexpected provisioning')
     before = sections(binary.read_bytes())
@@ -117,13 +117,13 @@ def main(base):
     with zipfile.ZipFile(out) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
     report = {'kind': 'adhoc-request-carrier', 'source_sha256': SOURCE_SHA, 'sha256': digest(out.read_bytes()), 'bytes': out.stat().st_size,
-              'bundle_build': '1.0.10', 'shader_facts_refresh': True, 'startup_memory_check': True, 'classic_lifecycle_fix': True, 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
+              'bundle_build': '1.1.0', 'shader_facts_refresh': True, 'startup_memory_check': True, 'graphics_backend': 'native-metal4', 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
               'profile_permissions_granted': False, 'executable_sections_unchanged': True, 'original_resources_unchanged': True,
               'native_codesign_verification': True, 'gameplay_verified': False}
     check = out.with_suffix('.verification.json'); check.write_text(json.dumps(report, indent=2))
     stage('private-publication')
-    assert_private(); tag = 'ios18-request-carrier-' + os.environ['GITHUB_RUN_ID']
-    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iOS 18 classic Metal lifecycle candidate, Increased Memory Limit only', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
+    assert_private(); tag = 'native-metal4-request-carrier-' + os.environ['GITHUB_RUN_ID']
+    gh('release', 'create', tag, '--repo', DATA_REPOSITORY, '--title', 'iPadOS 27 native Metal 4, Increased Memory Limit request only', '--notes', 'Not Apple provisioned or directly installable. Requests Increased Memory Limit only; Extended Virtual Addressing is absent. Requires final signing with a matching capable profile. Original unsigned IPA remains available.', '--prerelease')
     gh('release', 'upload', tag, '--repo', DATA_REPOSITORY, out, check)
     print('Verified ad-hoc request carrier published privately; no profile permissions granted.', flush=True)
 
