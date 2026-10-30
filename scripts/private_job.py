@@ -33,7 +33,7 @@ def main(mode,repo,work,*args):
                 print(f'{mode}: {stage}; elapsed {round(time.monotonic()-start)}s; raw diagnostics remain private',flush=True)
                 time.sleep(30)
             status=child.returncode
-        if status==0 and mode in ('assemble','launcher'):publish_template(work)
+        if status==0 and mode in ('assemble','launcher') and os.environ.get('RESOURCE_ONLY')!='1':publish_template(work)
         if status==0 and mode=='launcher18':
             from private_io import publish_ios18
             publish_ios18(work)
