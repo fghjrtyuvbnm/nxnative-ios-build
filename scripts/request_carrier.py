@@ -2,8 +2,8 @@
 import hashlib, json, pathlib, plistlib, struct, subprocess, sys, zipfile, os, time
 
 KEYS = {'com.apple.developer.kernel.increased-memory-limit'}
-SOURCE_SHA = '7cca955edefc648f63505bcad32bcc62e878e415fb533cd6afdded8a3dd5078d'
-NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-metal-lifecycle-unsigned.ipa'
+SOURCE_SHA = 'be0bb9d07a8cb9729c75bf13537be4892046ebeace92b7b2e296d2bf37933f27'
+NAME = 'FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-refreshed-data-unsigned.ipa'
 STAGE = 'initialization'
 
 def stage(name):
@@ -26,7 +26,7 @@ def native_command(args, base):
 
 def download_original(base):
     from private_io import gh, DATA_REPOSITORY
-    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-40857618010?refresh={time.time_ns()}').stdout)
+    release = json.loads(gh('api', f'repos/{DATA_REPOSITORY}/releases/tags/ios18-launcher-41003156138?refresh={time.time_ns()}').stdout)
     matches = [a for a in release['assets'] if a['name'] == NAME]
     if len(matches) != 1: raise ValueError('Exactly one original asset required')
     asset = matches[0]
@@ -91,7 +91,8 @@ def main(base):
     if len(apps) != 1: raise ValueError('One app required')
     app = apps[0]; info = plistlib.loads((app / 'Info.plist').read_bytes())
     binary = app / info['CFBundleExecutable']
-    if info['CFBundleVersion'] != '1.0.9': raise ValueError('Source version differs')
+    if info['CFBundleVersion'] != '1.0.10': raise ValueError('Source version differs')
+    if info.get('DMShaderFactsRefresh') is not True: raise ValueError('Refreshed shader identity is missing')
     if info.get('DMClassicLifecycleFix') is not True: raise ValueError('Lifecycle fix is missing')
     if info.get('DMStartupMemoryCheck') is not True: raise ValueError('Startup memory check is missing')
     if (app / 'embedded.mobileprovision').exists(): raise ValueError('Unexpected provisioning')
@@ -116,7 +117,7 @@ def main(base):
     with zipfile.ZipFile(out) as z:
         if z.testzip(): raise ValueError('ZIP CRC failed')
     report = {'kind': 'adhoc-request-carrier', 'source_sha256': SOURCE_SHA, 'sha256': digest(out.read_bytes()), 'bytes': out.stat().st_size,
-              'bundle_build': '1.0.9', 'startup_memory_check': True, 'classic_lifecycle_fix': True, 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
+              'bundle_build': '1.0.10', 'shader_facts_refresh': True, 'startup_memory_check': True, 'classic_lifecycle_fix': True, 'requests': sorted(KEYS), 'signed_adhoc': True, 'apple_certificate_used': False,
               'profile_permissions_granted': False, 'executable_sections_unchanged': True, 'original_resources_unchanged': True,
               'native_codesign_verification': True, 'gameplay_verified': False}
     check = out.with_suffix('.verification.json'); check.write_text(json.dumps(report, indent=2))
