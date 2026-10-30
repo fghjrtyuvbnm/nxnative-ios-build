@@ -13,11 +13,11 @@ def main(mode,repo,work,*args):
     start=time.monotonic();status=1;live_at=0
     try:
         with (logs/'private-job.log').open('w') as log:
-            if mode in ('assemble','launcher','launcher18'):
+            if mode in ('assemble','launcher','launcher18','launcher-native'):
                 # Also suppress transfer diagnostics in the public job.
                 p=subprocess.run([sys.executable,pathlib.Path(__file__).with_name('private_io.py'),'input',work],stdout=log,stderr=subprocess.STDOUT)
                 if p.returncode:raise RuntimeError('Private input restore failed')
-            if mode in ('launcher','launcher18'):
+            if mode in ('launcher','launcher18','launcher-native'):
                 resources=download_resources(work,args[0])
                 command=[sys.executable,'-u',pathlib.Path(__file__).with_name('build_external_launcher.py'),repo,work,resources,args[0]]
             else:command=[sys.executable,'-u',pathlib.Path(__file__).with_name('pipeline.py'),mode,repo,work,*args]
@@ -34,7 +34,7 @@ def main(mode,repo,work,*args):
                 time.sleep(30)
             status=child.returncode
         if status==0 and mode in ('assemble','launcher') and os.environ.get('RESOURCE_ONLY')!='1':publish_template(work)
-        if status==0 and mode=='launcher18':
+        if status==0 and mode in ('launcher18','launcher-native'):
             from private_io import publish_ios18
             publish_ios18(work)
     finally:

@@ -92,7 +92,10 @@ def publish_ios18(work):
     from external_pack import resource_name
     import zipfile
     assert_private();out=pathlib.Path(work)/'output';m=json.loads((out/'result-manifest.json').read_text())
-    if m.get('minimum_ios')!='18.0' or m.get('strong_metal4_imports')!=0 or m.get('weak_metal4_imports')!=0 or m.get('data_resources_embedded') is not False:raise ValueError('iOS 18 native validation is incomplete')
+    native=m.get('graphics_backend')=='native-metal4'
+    if native:
+        if m.get('minimum_ios')!='26.0' or m.get('metal4_imports',0)<1 or m.get('classic_adapter_present') is not False or m.get('data_resources_embedded') is not False:raise ValueError('Native Metal 4 validation incomplete')
+    elif m.get('minimum_ios')!='18.0' or m.get('strong_metal4_imports')!=0 or m.get('weak_metal4_imports')!=0 or m.get('data_resources_embedded') is not False:raise ValueError('iOS 18 native validation is incomplete')
     source=out/'FFR-external-template.ipa'
     if sha256(source)!=m['template_sha256']:raise ValueError('Final IPA changed after verification')
     with zipfile.ZipFile(source) as z:
@@ -105,14 +108,16 @@ def publish_ios18(work):
     if m.get('startup_memory_check'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-startup-memory-check-unsigned.ipa'
     if m.get('classic_lifecycle_fix'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-metal-lifecycle-unsigned.ipa'
     if m.get('shader_facts_refresh'):filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-ios18-refreshed-data-unsigned.ipa'
+    if native:filename='FINAL-FANTASY-RESONANCE-HK-1.0.1-iPadOS27-native-metal4-unsigned.ipa'
     ipa=out/filename;source.rename(ipa)
     report={k:v for k,v in m.items() if k not in ('parts','resource_only')}
     report.update(launcher_sha256=m['template_sha256'],launcher_bytes=ipa.stat().st_size,zip_crc_verified=True,data_separate=True,physical_usb_runtime_tested=False,gameplay_tested=False)
     check=ipa.with_suffix('.verification.json');check.write_text(json.dumps(report,indent=2))
-    tag='ios18-launcher-'+os.environ['GITHUB_RUN_ID']
-    gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title','Unsigned iOS 18 launcher for iPad mini 7','--notes','Private iOS 18 ARM64 Metal 3 launcher. Reuses the original complete external FFRS-Data directory. Device gameplay and physical USB access remain unverified.','--prerelease')
+    tag=('native-metal4-launcher-' if native else 'ios18-launcher-')+os.environ['GITHUB_RUN_ID']
+    title='Unsigned native Metal 4 app for iPadOS 27' if native else 'Unsigned iOS 18 launcher for iPad mini 7'
+    gh('release','create',tag,'--repo',DATA_REPOSITORY,'--title',title,'--notes','Private unsigned ARM64 app. Requires external data with the exact recorded identity. Device gameplay remains unverified. No entitlement request carrier or Apple signing.','--prerelease')
     gh('release','upload',tag,'--repo',DATA_REPOSITORY,ipa,check)
-    if m.get('memory_diagnostics'):
+    if m.get('memory_diagnostics') and not native:
         request=pathlib.Path(__file__).resolve().parents[1]/'runtime/MemoryRequirements.entitlements'
         gh('release','upload',tag,'--repo',DATA_REPOSITORY,request)
 

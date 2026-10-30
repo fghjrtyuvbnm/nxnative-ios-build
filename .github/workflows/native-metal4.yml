@@ -1,0 +1,29 @@
+name: Build unsigned native Metal 4 for iPadOS 27
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  DATA_BUILD_ID: '40459496301'
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Validate retained memory policy and packed-data reader
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          python scripts/validate_ue_vm.py "$RUNNER_TEMP/nxnative"
+          python scripts/validate_shader_pack.py
+      - name: Compile native Metal 4 app with matched private resources
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          TARGET_IOS: 'native-metal4'
+          REFRESH_SHADER_FACTS: '1'
+        run: python -u scripts/private_job.py launcher-native "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game" 40991690823

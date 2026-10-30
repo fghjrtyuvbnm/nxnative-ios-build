@@ -49,8 +49,9 @@ def main(repo,work,download,source_run):
     from apply_runtime import apply
     apply(repo)
     ios18=os.environ.get('TARGET_IOS')=='18.0'
-    if ios18 and previous.get('shader_failed'):raise ValueError('iOS 18 publication requires all source shaders to have succeeded')
-    if ios18:
+    native=os.environ.get('TARGET_IOS')=='native-metal4'
+    if (ios18 or native) and previous.get('shader_failed'):raise ValueError('Publication requires all source shaders to have succeeded')
+    if ios18 or native:
         from apply_ue_vm import apply as apply_vm
         apply_vm(repo)
         from apply_memory_diagnostics import apply as apply_memory
@@ -59,8 +60,12 @@ def main(repo,work,download,source_run):
         validate_startup(work/'startup-memory-tests')
         from apply_startup_memory import apply as apply_startup
         apply_startup(repo)
-        from apply_ios18 import apply as apply_compatibility
-        apply_compatibility(repo)
+        if ios18:
+            from apply_ios18 import apply as apply_compatibility
+            apply_compatibility(repo)
+        else:
+            from apply_native_metal import apply as apply_native
+            apply_native(repo)
         from apply_shader_pack import apply as apply_pack
         apply_pack(repo)
     sys.path.insert(0,str(repo/'dm/games'));import game
@@ -95,6 +100,7 @@ def main(repo,work,download,source_run):
                 LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
     if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',DMShaderPackVersion=1,DMMemoryDiagnostics=True,DMAllocationDiagnostics=1,DMLargeUEVM=True,DMVMAudit=True,DMStartupMemoryCheck=True,DMClassicLifecycleFix=True,CFBundleVersion='1.0.9')
     if refreshed:info.update(DMShaderFactsRefresh=True,CFBundleVersion='1.0.10')
+    if native:info.update(DMGraphicsCompatibility='native-metal4',DMTargetDevice='iPad mini 7 (A17 Pro), iPadOS 27',DMShaderPackVersion=1,DMMemoryDiagnostics=True,DMLargeUEVM=True,DMStartupMemoryCheck=True,CFBundleVersion='1.1.0')
     plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned external-folder launcher; no shader recompilation')
     progress(work,'compiling-app')
@@ -108,17 +114,21 @@ def main(repo,work,download,source_run):
     if ios18:
         from ios18_artifact import audit_app
         native_audit=audit_app(app)
+    elif native:
+        from native_metal_artifact import audit_app
+        native_audit=audit_app(app)
     progress(work,'packing-template')
     cmd=[sys.executable,repo/'dm/ios/tools/pack_ipa.py',template,'--store',g.get('zip_store')]
     for name in ('_CodeSignature','embedded.mobileprovision','romfs','msl','aoc'):cmd+=['--skip',f'{arc}/{name}']
     cmd += [f'{arc}={app}']
-    if not ios18:cmd += [f'{arc}/msl/b-{chain}={resources}/msl/b-{chain}',f'{arc}/aoc={resources}/aoc']
+    if not (ios18 or native):cmd += [f'{arc}/msl/b-{chain}={resources}/msl/b-{chain}',f'{arc}/aoc={resources}/aoc']
     b.run(cmd,logs/'pack_template.log',env=ie)
     report=dict(previous,external_data_runtime=True,resource_only=False,geometry_validation='passed',external_data_identity=identity,source_shader_run=int(source_run),
                 template_sha256=sha256(template),template_bytes=template.stat().st_size,parts=split_file(template,out,'template'),
                 romfs_packaging='Export as separate data folder on Windows',signed=False,runtime_tested=False)
     if ios18:report.update(native_audit,data_resources_embedded=False,vm_audit=True,startup_memory_check=True,classic_lifecycle_fix=True,bundle_build='1.0.9',large_ue_vm=True,allocation_diagnostics=1,memory_diagnostics=True,shader_pack_version=1,romfs_packaging='Use packed or original FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
     if refreshed:report.update(shader_facts_refresh=True,bundle_build='1.0.10')
+    if native:report.update(native_audit,graphics_backend='native-metal4',data_resources_embedded=False,startup_memory_check=True,large_ue_vm=True,memory_diagnostics=True,shader_pack_version=1,bundle_build='1.1.0',target_device='iPad mini 7 (A17 Pro), iPadOS 27')
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
     progress(work,'template-ready')
     b.PROG.close();print('External-folder launcher template ready; shaders reused unchanged.',flush=True)

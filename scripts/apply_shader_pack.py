@@ -5,7 +5,9 @@ def apply(repo):
     shutil.copyfile(pathlib.Path(__file__).resolve().parents[1]/'runtime/shader_pack.h',root/'shader_pack.h')
     shutil.copyfile(pathlib.Path(__file__).resolve().parents[1]/'runtime/MemoryDiagnostics.h',root/'MemoryDiagnostics.h')
     if '#include "shader_pack.h"' in text:return
-    text=text.replace('#include "ios18_metal.h"','#include "ios18_metal.h"\n#include "shader_pack.h"',1)
+    anchor='#include "ios18_metal.h"' if '#include "ios18_metal.h"' in text else '#import <Metal/Metal.h>'
+    if text.count(anchor)!=1:raise ValueError('Shader reader include anchor changed')
+    text=text.replace(anchor,anchor+'\n#include "shader_pack.h"',1)
     start=text.index('    int fd = open(path.fileSystemRepresentation, O_RDONLY);',text.index('static id<MTLLibrary> lib_from_file('))
     end=text.index('\n}',start)
     text=text[:start]+'''    NSData *bytes=dm_shader_data(path,err);
