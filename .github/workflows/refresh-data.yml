@@ -1,0 +1,27 @@
+name: Regenerate private iOS 18 shader data
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: private-shader-data-refresh
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ github.token }}
+  DATA_BUILD_ID: '40459496301'
+jobs:
+  resources:
+    runs-on: macos-26
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Revalidate old cache provenance and regenerate all shader outputs
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          EXTERNAL_LAUNCHER: '1'
+          REFRESH_SHADER_FACTS: '1'
+          RESOURCE_ONLY: '1'
+        run: python -u scripts/private_job.py assemble "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game"

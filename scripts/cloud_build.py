@@ -37,6 +37,9 @@ def main(repo,work,mode='full'):
     repo=pathlib.Path(repo).resolve();work=pathlib.Path(work).resolve()
     manifest=json.loads((work/'input-manifest.json').read_text())
     if manifest.get('input_kind')!='shader-only':raise ValueError('This workflow expects the verified Windows shader-only input')
+    if os.environ.get('REFRESH_SHADER_FACTS')=='1':
+        from refresh_shader_profile import apply as refresh
+        (work/'shader-profile-refresh.json').write_text(json.dumps(refresh(repo),indent=2))
     sys.path.insert(0,str(repo/'dm/games'));import game
     spec=importlib.util.spec_from_file_location('nsp_build',repo/'scripts/build_ipa_from_nsp.py')
     b=importlib.util.module_from_spec(spec);spec.loader.exec_module(b)
@@ -66,10 +69,15 @@ def main(repo,work,mode='full'):
     results=json.loads((sh/'cache'/('b-'+b.chain_of(repo))/'_b_build.json').read_text())
     failed=[r for r in results if r['st']!='ok']
     if len(results)!=73496 or len(failed)>11:raise ValueError(f'Unexpected shader build results: {len(results)} total, {len(failed)} failed')
-    if os.environ.get('EXTERNAL_LAUNCHER')=='1':checkpoint_resources(b,repo,work,g,ios,results,env,logs)
+    if os.environ.get('RESOURCE_ONLY')=='1' and failed:raise ValueError('Refreshed resources require every shader to succeed')
     from cache_layout import verify_geometry
     geometry={fields[3]:'geometry' for line in g.table('shader_map.tsv').read_text().splitlines() if len(fields:=line.split('\t'))==5 and fields[2]=='geometry'}
     verify_geometry(geometry,sh/'cache'/('b-'+b.chain_of(repo)),ios/('b-'+b.chain_of(repo)),b.chain_of(repo))
+    if os.environ.get('EXTERNAL_LAUNCHER')=='1':checkpoint_resources(b,repo,work,g,ios,results,env,logs)
+    if os.environ.get('RESOURCE_ONLY')=='1':
+        if failed:raise ValueError('Refreshed resources require every shader to succeed')
+        print('Full shader pass and geometry validated; resource-only build completed',flush=True)
+        return
     ie=dict(env,W=str(work/'ipa'),PATCHED=str(patched),ROMFS=str(ex/'RomFS'),MSL_IOS=str(ios),GFXAPI='nvn',FONT_PY=sys.executable,
         DM_DISPLAY_NAME='FINAL FANTASY RESONANCE',DM_BUNDLE_ID='org.nxnative.'+TITLE.lower(),DM_APP_VERSION='1.0.1',
         AOC=str(work/'aoc'),DM_XCODE_DERIVED_DATA=str(work/'xcode-dd'),DM_LANG='zh-Hans',DM_SHOW_FPS='1',DM_PSO_GPUS='none',DM_ENTITLEMENTS='')

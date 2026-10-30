@@ -41,6 +41,10 @@ def restore_tables(archive,dest,profile,chain,inputs):
 def main(repo,work,download,source_run):
     repo=pathlib.Path(repo).resolve();work=pathlib.Path(work).resolve()
     archive,previous=reconstruct(download)
+    refreshed=os.environ.get('REFRESH_SHADER_FACTS')=='1'
+    if refreshed:
+        from refresh_shader_profile import apply as refresh
+        refresh(repo)
     if previous.get('shader_total')!=73496 or len(previous.get('shader_failed',[]))>11:raise ValueError('Source shader build was incomplete')
     from apply_runtime import apply
     apply(repo)
@@ -90,6 +94,7 @@ def main(repo,work,download,source_run):
     info.update(DMExternalGameData=True,DMExternalDataVersion=1,DMExternalDataIdentity=identity,DMExternalRomFSMarker=g.get('romfs_marker'),
                 LSSupportsOpeningDocumentsInPlace=True,UIFileSharingEnabled=True)
     if ios18:info.update(DMGraphicsCompatibility='classic-metal',DMTargetDevice='iPad mini 7 (A17 Pro)',DMShaderPackVersion=1,DMMemoryDiagnostics=True,DMAllocationDiagnostics=1,DMLargeUEVM=True,DMVMAudit=True,DMStartupMemoryCheck=True,DMClassicLifecycleFix=True,CFBundleVersion='1.0.9')
+    if refreshed:info.update(DMShaderFactsRefresh=True,CFBundleVersion='1.0.10')
     plist.write_bytes(plistlib.dumps(info))
     b.PROG.stage('Compile unsigned external-folder launcher; no shader recompilation')
     progress(work,'compiling-app')
@@ -113,6 +118,7 @@ def main(repo,work,download,source_run):
                 template_sha256=sha256(template),template_bytes=template.stat().st_size,parts=split_file(template,out,'template'),
                 romfs_packaging='Export as separate data folder on Windows',signed=False,runtime_tested=False)
     if ios18:report.update(native_audit,data_resources_embedded=False,vm_audit=True,startup_memory_check=True,classic_lifecycle_fix=True,bundle_build='1.0.9',large_ue_vm=True,allocation_diagnostics=1,memory_diagnostics=True,shader_pack_version=1,romfs_packaging='Use packed or original FFRS-Data with this exact identity',target_device='iPad mini 7 (A17 Pro)')
+    if refreshed:report.update(shader_facts_refresh=True,bundle_build='1.0.10')
     (out/'result-manifest.json').write_text(json.dumps(report,indent=2))
     progress(work,'template-ready')
     b.PROG.close();print('External-folder launcher template ready; shaders reused unchanged.',flush=True)

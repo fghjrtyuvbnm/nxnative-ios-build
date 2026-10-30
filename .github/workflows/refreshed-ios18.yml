@@ -1,0 +1,31 @@
+name: Build iOS 18 IPA for regenerated shader data
+on:
+  workflow_dispatch:
+    inputs:
+      resource_run:
+        description: Successful private shader regeneration run
+        required: true
+        type: string
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  DATA_BUILD_ID: '40459496301'
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-build-setup
+      - name: Verify native classic rendering
+        run: python -u scripts/ios18_validate.py "$RUNNER_TEMP/nxnative"
+      - name: Compile matched private IPA
+        env:
+          PRIVATE_DATA_TOKEN: ${{ secrets.PRIVATE_DATA_TOKEN }}
+          TARGET_IOS: '18.0'
+          REFRESH_SHADER_FACTS: '1'
+          RESOURCE_RUN: ${{ inputs.resource_run }}
+        run: python -u scripts/private_job.py launcher18 "$RUNNER_TEMP/nxnative" "$RUNNER_TEMP/game" "$RESOURCE_RUN"
